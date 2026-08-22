@@ -76,22 +76,22 @@
     for (var i = 0; i < n; i++) {
       var f = i / (n - 1);
       var section = 'butt';
-      var waterRate = 95, airRate = 1.6;
+      var waterRate = 95, airRate = 1.1;
       if (f >= c.sighterFrom && f <= c.sighterTo) {
         section = 'sighter';
-        waterRate = 115; airRate = 2.1;
+        waterRate = 115; airRate = 1.5;
       } else if (f > c.sighterTo) {
         section = 'tippet';
         // Thinner tippet cuts the current better -> less belly below the sighter.
         waterRate = 55 * (0.14 / c.tippet);
-        airRate = 1.2;
+        airRate = 0.8;
       }
       var isPoint = (i === n - 1);
       this.nodes.push(new Node(0, 0, {
         invMass: i === 0 ? 0 : 1 / (isPoint ? pointMass : monoMass),
         buoy: isPoint ? BUOY.fly : BUOY.mono,
         waterRate: isPoint ? G * BUOY.fly / beadSinkRate(c.pointBead) : waterRate,
-        airRate: isPoint ? 0.9 : airRate,
+        airRate: isPoint ? 0.45 : airRate,
         section: isPoint ? 'point' : section,
         pinned: i === 0
       }));
@@ -110,7 +110,7 @@
         invMass: 1 / dropperMass,
         buoy: BUOY.fly,
         waterRate: G * BUOY.fly / beadSinkRate(c.dropperBead),
-        airRate: 0.9,
+        airRate: 0.5,
         section: 'dropper',
         pinned: false
       }));

@@ -42,9 +42,13 @@
     this.rig = new EN.Rig({ leaderLength: 3.2, pointBead: 3.5, tippet: 0.14 });
     this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 1.0, this.tip.y - 1.2);
 
-    this.phase = 'ready';
+    // Only two states now. Everything that is not playing a fish is fishing,
+    // however the flies got into the water.
+    this.phase = 'fishing';
     this.phaseTime = 0;
-    this.driftTime = 0;
+    this.driftActive = false;
+    this.driftLocked = false;
+    this.dryTime = 0;
     this.showLies = false;
     this.paused = false;
 
@@ -59,7 +63,7 @@
     this.coachCooldown = 0;
     this.events = [];
 
-    this.say('Left-click or press Space to make a tuck cast upstream.', 'info');
+    this.say('Sweep the rod upstream to flick the flies out, then lead them down.', 'info');
   }
 
   Game.prototype._blankDrift = function () {
@@ -67,8 +71,8 @@
   };
 
   Game.prototype.say = function (text, kind) {
-    this.messages.unshift({ text: text, kind: kind || 'info', life: 5.5 });
-    if (this.messages.length > 4) this.messages.length = 4;
+    this.messages.unshift({ text: text, kind: kind || 'info', life: 4.5 });
+    if (this.messages.length > 3) this.messages.length = 3;
   };
 
   Game.prototype.coach = function (text) {
@@ -99,8 +103,11 @@
     this.rig.gathering = false;
     this.rig.lineOut = this.rig.config.leaderLength;
     this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 0.9, this.tip.y - 1.3);
-    this.phase = 'ready';
+    this.phase = 'fishing';
     this.phaseTime = 0;
+    this.driftActive = false;
+    this.driftLocked = false;
+    this.dryTime = 0;
     this.drift = this._blankDrift();
     this._resetLift(0);
   };
@@ -142,16 +149,15 @@
       if (near < 0.5) f.spook = Math.min(1, f.spook + this.river.preset.spook * (1 - near / 0.5));
     }
 
-    this.phase = 'drifting';
-    this.phaseTime = 0;
-    this.driftTime = 0;
+    this.driftActive = false;
+    this.driftLocked = false;
+    this.dryTime = 0;
     this.drift = this._blankDrift();
     this._resetLift(0.6);
   };
 
   Game.prototype.strike = function () {
     if (this.phase === 'fighting') return;
-    if (this.phase !== 'drifting') { this.cast(); return; }
 
     var fish = this.school.active();
     if (fish && fish.state === 'taken') {
@@ -166,6 +172,7 @@
         this.rig.lineOut = clamp(span - 0.25, 0.9, this.rig.config.leaderLength);
         this.phase = 'fighting';
         this.phaseTime = 0;
+        this.driftActive = false;
         this.stats.hooked++;
         this.say('Hooked up — ' + fish.lengthCm + ' cm ' + fish.species.name.toLowerCase() + '!', 'good');
       } else {
@@ -183,13 +190,9 @@
         }
         this._liftFlies();
       }
-      return;
     }
-
-    // A strike at nothing is not free: it yanks the flies off the bottom.
-    this.stats.missed++;
-    this._liftFlies();
-    this.say('Nothing there — that lift pulled the flies up.', 'info');
+    // A lift with nothing on it is just how you pick the flies up to recast.
+    // The cost is already real — you gave up the rest of the drift.
   };
 
   Game.prototype._liftFlies = function () {
@@ -237,7 +240,7 @@
     for (var s = 0; s < steps; s++) this.rig.step(sub, this.tip, this.river);
 
     this._updateFish(dt);
-    if (this.phase === 'drifting') this._scoreDrift(dt);
+    if (this.phase !== 'fighting') this._trackDrift(dt);
   };
 
   Game.prototype._anchorTo = function (fish) {
@@ -262,11 +265,18 @@
     this.lift = (this.tip.y - this.tipLag.y)
               + Math.max(0, this.tip.x - this.tipLag.x) * 0.5;
 
-    if (this.liftStrike && this.phase === 'drifting' &&
+    // Only a lift with the flies actually in the water can set a hook.
+    if (this.liftStrike && this.phase !== 'fighting' && this._anyFlyWet() &&
         this.liftCooldown <= 0 && this.lift > this.liftThreshold) {
       this.liftCooldown = 0.9;
       this.strike();
     }
+  };
+
+  Game.prototype._anyFlyWet = function () {
+    if (this.rig.point().y < 0) return true;
+    var d = this.rig.dropper();
+    return !!(d && d.y < 0);
   };
 
   Game.prototype._resetLift = function (delay) {
@@ -277,9 +287,15 @@
   };
 
   Game.prototype._updateFish = function (dt) {
-    var flies = [this.rig.point()];
-    var dropper = this.rig.dropper();
-    if (dropper) flies.push(dropper);
+    // A fly only fishes when it is in the water. How it got there — a tuck
+    // cast, or a sweep of the rod — is none of the trout's business.
+    var flies = [];
+    if (this.phase !== 'fighting') {
+      var point = this.rig.point();
+      if (point.y < 0) flies.push(point);
+      var dropper = this.rig.dropper();
+      if (dropper && dropper.y < 0) flies.push(dropper);
+    }
 
     // Nothing has hold of a fly unless a fish does.
     var busy = this.school.active();
@@ -290,15 +306,11 @@
       if (f.state === 'landed' || f.state === 'lost') continue;
 
       if (f.state === 'holding') {
-        if (this.phase === 'drifting') {
-          var ev = f.updateHolding(dt, flies);
-          if (ev && ev.type === 'take') {
-            this.stats.takes++;
-            this._anchorTo(f);
-            this.say('Take!', 'alert');
-          }
-        } else {
-          f.updateHolding(dt, []);
+        var ev = f.updateHolding(dt, flies);
+        if (ev && ev.type === 'take') {
+          this.stats.takes++;
+          this._anchorTo(f);
+          this.say('Take!', 'alert');
         }
       } else if (f.state === 'taken') {
         this._anchorTo(f);
@@ -329,8 +341,11 @@
 
   Game.prototype._endFight = function (fish, res) {
     this.rig.anchor = null;
-    this.phase = 'ready';
+    this.phase = 'fishing';
     this.phaseTime = 0;
+    this.driftActive = false;
+    this.driftLocked = true;
+    this.dryTime = 0;
     this.rig.lineOut = this.rig.config.leaderLength;
 
     if (res.type === 'landed') {
@@ -349,49 +364,87 @@
     this.school.reset();
   };
 
+  /**
+   * A drift begins when the point fly goes into the water and ends when it
+   * comes out again or reaches you. Nothing here cares how the flies got there,
+   * which is the whole point: flick them upstream with the rod and you are
+   * fishing, exactly as you would be off a tuck cast.
+   */
+  Game.prototype._trackDrift = function (dt) {
+    var p = this.rig.point();
+    var wet = p.y < 0;
+    var past = p.x > this.grip.x - 0.35;
+
+    if (!wet) {
+      this.dryTime += dt;
+      // A moment in the air is a wave slapping the fly, not the end of a drift.
+      if (this.dryTime > 0.35) {
+        this.driftLocked = false;
+        if (this.driftActive) {
+          this.driftActive = false;
+          this._finishDrift();
+        }
+      }
+      return;
+    }
+
+    this.dryTime = 0;
+    // Once the flies have swung past you they have to be put back upstream
+    // before they count as a new drift.
+    if (this.driftLocked && !past && p.x < this.grip.x - 1.2) this.driftLocked = false;
+
+    if (!this.driftActive) {
+      if (this.driftLocked || past) return;
+      this.driftActive = true;
+      this.drift = this._blankDrift();
+      this.driftTime = 0;
+      // Don't read the tail of the casting sweep as a hookset.
+      this._resetLift(0.3);
+    }
+
+    this.driftTime += dt;
+    this._scoreDrift(dt);
+
+    if (past && !this.school.active()) {
+      this.driftActive = false;
+      this.driftLocked = true;
+      this._finishDrift();
+    }
+  };
+
   Game.prototype._scoreDrift = function (dt) {
     var river = this.river;
     var p = this.rig.point();
     var d = this.drift;
     d.t += dt;
+    d.submerged += dt;
 
-    if (p.y < 0) {
-      d.submerged += dt;
-      var above = river.heightAboveBed(p.x, p.y);
-      var u = river.speedAt(p.x, p.y);
-      var dragErr = Math.abs(p.vx - u);
+    var above = river.heightAboveBed(p.x, p.y);
+    var u = river.speedAt(p.x, p.y);
+    var dragErr = Math.abs(p.vx - u);
 
-      if (above < 0.28) d.zone += dt;
-      if (dragErr < 0.14) d.dead += dt;
-      if (this.rig.contact > 0.82 && this.rig.contact < 0.998) d.contact += dt;
+    if (above < 0.28) d.zone += dt;
+    if (dragErr < 0.14) d.dead += dt;
+    if (this.rig.contact > 0.82 && this.rig.contact < 0.998) d.contact += dt;
 
-      if (d.submerged > 1.2) {
-        if (above > 0.55) {
-          this.coach('You are riding high. Cast further upstream, go heavier, or lengthen the leader.');
-        } else if (this.rig.contact < 0.72) {
-          this.coach('Big belly in the leader — raise the tip and lead the sighter with the drift.');
-        } else if (dragErr > 0.30 && this.rig.contact > 0.99) {
-          this.coach('You are dragging the flies. Let the sighter travel at the speed of the water.');
-        } else if (Math.abs(p.vx) < 0.05 && above < 0.05) {
-          this.coach('Anchored on the bottom. Lighter bug, or lift a touch.');
-        }
+    if (d.submerged > 1.2) {
+      if (above > 0.55) {
+        this.coach('You are riding high. Flick the flies further upstream, go heavier, or lengthen the leader.');
+      } else if (this.rig.contact < 0.72) {
+        this.coach('Big belly in the leader — raise the tip and lead the sighter with the drift.');
+      } else if (dragErr > 0.30 && this.rig.contact > 0.99) {
+        this.coach('You are dragging the flies. Let the sighter travel at the speed of the water.');
+      } else if (Math.abs(p.vx) < 0.05 && above < 0.05) {
+        this.coach('Anchored on the bottom. Lighter bug, or lift a touch.');
       }
-    }
-
-    // Drift is over once the flies come level with you.
-    if (this.school.active()) return;
-    if (p.x > this.grip.x - 0.35 || this.phaseTime > 26) {
-      this._finishDrift();
     }
   };
 
   Game.prototype._finishDrift = function () {
     var d = this.drift;
-    this.phase = 'ready';
     this.phaseTime = 0;
-    this.rig.anchor = null;
 
-    // A cast that skated through without ever fishing does not get scored.
+    // A pass that skated through without ever fishing does not get scored.
     if (d.submerged < 0.4) return;
     this.stats.drifts++;
 

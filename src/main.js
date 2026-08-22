@@ -15,30 +15,18 @@
    'drag-val', 'drag-fill', 'fight-section', 'tension-val', 'tension-fill', 'tension-band',
    'stamina-val', 'stamina-fill', 'preset', 'bead', 'bead-val', 'leader', 'leader-val',
    'tippet', 'dropper', 'lies', 'reset', 's-drifts', 's-takes', 's-hooked', 's-landed',
-   's-best', 's-zone', 's-dead', 's-last', 'touch-controls', 'btn-action',
+   's-best', 's-zone', 's-dead', 's-last',
    'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
 
-  // On a touchscreen a tap cannot mean both "put the rod here" and "strike" —
-  // you would set the hook every time you moved the rod. So on touch the canvas
-  // only aims the rod and a button does the casting, striking and gathering.
+  // Everything is done with the rod itself: sweep it to cast, lift it to set,
+  // hold the pointer down to gather line while a fish is on.
   var touchMode = false;
   try {
     touchMode = window.matchMedia('(pointer: coarse)').matches;
   } catch (e) { /* older browsers: fall back to detecting a touch pointer */ }
-
-  function setTouchMode(on) {
-    if (on === touchMode) return;
-    touchMode = on;
-    el['touch-controls'].hidden = !on;
-  }
-
-  function doAction() {
-    if (game.phase === 'fighting') game.gathering = true;
-    else game.strike();
-  }
 
   function pointerToWorld(ev) {
     var rect = canvas.getBoundingClientRect();
@@ -53,11 +41,12 @@
 
   canvas.addEventListener('pointerdown', function (ev) {
     ev.preventDefault();
-    if (ev.pointerType === 'touch' || ev.pointerType === 'pen') setTouchMode(true);
+    if (ev.pointerType === 'touch' || ev.pointerType === 'pen') touchMode = true;
     try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* not fatal */ }
     var w = pointerToWorld(ev);
     game.setTipTarget(w.x, w.y);
-    if (!touchMode) doAction();
+    // Only means anything with a fish on, so it costs nothing the rest of the time.
+    game.gathering = true;
   });
 
   function releasePointer() { game.gathering = false; }
@@ -71,10 +60,14 @@
     switch (ev.key) {
       case ' ':
         ev.preventDefault();
-        if (game.phase === 'fighting') game.gathering = true; else game.strike();
+        game.gathering = true;
         break;
       case 'r': case 'R':
-        if (game.phase !== 'fighting') { game.resetDrift(); game.cast(); }
+        if (game.phase !== 'fighting') game.resetDrift();
+        break;
+      case 'c': case 'C':
+        // Keyboard-only fallback for anyone who cannot get the sweep to load.
+        if (game.phase !== 'fighting') game.cast();
         break;
       case 'l': case 'L':
         el.lies.checked = !el.lies.checked;
@@ -92,18 +85,6 @@
   window.addEventListener('keyup', function (ev) {
     if (ev.key === ' ') game.gathering = false;
   });
-
-  el['btn-action'].addEventListener('pointerdown', function (ev) {
-    ev.preventDefault();
-    ev.stopPropagation();
-    doAction();
-  });
-  el['btn-action'].addEventListener('pointerup', releasePointer);
-  el['btn-action'].addEventListener('pointercancel', releasePointer);
-  el['btn-action'].addEventListener('pointerleave', releasePointer);
-  el['btn-action'].addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
-
-  el['touch-controls'].hidden = !touchMode;
 
   window.addEventListener('resize', function () { renderer.resize(); });
   window.addEventListener('orientationchange', function () {
@@ -168,18 +149,16 @@
   // ---- HUD -----------------------------------------------------------------
 
   var PHASE_TEXT = {
-    ready: 'Ready — <strong>click</strong> or <kbd>Space</kbd> to tuck a cast upstream',
+    idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>sweep the rod up</strong> to set',
     fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it'
   };
 
   var PHASE_TEXT_TOUCH = {
-    ready: 'Drag to hold the rod tip — tap <strong>CAST</strong>',
+    idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>flick up</strong> to set',
-    fighting: 'Fish on — <strong>hold GATHER</strong> to take line, let go to give it'
+    fighting: 'Fish on — <strong>press and hold</strong> to gather line, let go to give it'
   };
-
-  var ACTION_LABEL = { ready: 'CAST', drifting: 'STRIKE', fighting: 'GATHER' };
 
   function setFill(node, pct, color) {
     node.style.width = clamp(pct, 0, 100).toFixed(1) + '%';
@@ -192,10 +171,11 @@
     var hud = game.hudState();
     var s = game.stats;
 
+    var cue = game.phase === 'fighting' ? 'fighting'
+            : (game.driftActive ? 'drifting' : 'idle');
     el.phase.innerHTML = game.paused
       ? 'Paused — <kbd>P</kbd> to resume'
-      : (touchMode ? PHASE_TEXT_TOUCH : PHASE_TEXT)[game.phase];
-    if (touchMode) el['btn-action'].textContent = ACTION_LABEL[game.phase] || 'CAST';
+      : (touchMode ? PHASE_TEXT_TOUCH : PHASE_TEXT)[cue];
 
     // Contact: the band is where a take actually reaches you.
     var c = hud.contact * 100;
@@ -222,7 +202,7 @@
 
     var fighting = game.phase === 'fighting';
     el['fight-section'].hidden = !fighting;
-    el['drift-section'].classList.toggle('dim', fighting);
+    el['drift-section'].classList.toggle('dim', fighting || !game.driftActive);
     if (fighting) {
       var maxLoad = 2.0;
       var breakAt = game.tippetStrength() * 0.86;

@@ -39,13 +39,16 @@ node tools/build-single-file.js
 
 ## Playing it
 
+There are no cast or strike buttons. Everything is done with the rod.
+
 | Action | Input |
 | --- | --- |
 | Hold the rod tip | move the pointer |
-| Tuck cast upstream | click, or <kbd>Space</kbd> |
-| Strike | sweep the rod tip up — or click / <kbd>Space</kbd> |
-| Gather line (while a fish is on) | hold the pointer button |
-| Recast | <kbd>R</kbd> |
+| Cast | sweep the rod: load back, drive upstream, stop |
+| Strike | sweep the rod tip up |
+| Gather line (while a fish is on) | hold the pointer button, or <kbd>Space</kbd> |
+| Reset the rig under the tip | <kbd>R</kbd> |
+| Tuck cast (fallback) | <kbd>C</kbd> |
 | Learning mode (reveal lies and fish) | <kbd>L</kbd> |
 | Pause | <kbd>P</kbd> |
 | Switch beat | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> |
@@ -63,10 +66,17 @@ would set the hook every time you moved the rod. So on touch devices the water
 only aims the rod, a flick up sets the hook, and a round button handles casting
 and gathering line. This switches on automatically.
 
-The loop: tuck a cast upstream, lead the sighter downstream at the speed of the
-water, keep the contact meter in its band, and lift at anything the sighter does
-that the current cannot explain. Then keep a bend in the rod, give line when it
-runs, and drop the rod tip to lead a beaten fish to your feet.
+The loop: sweep the flies upstream, lead the sighter downstream at the speed of
+the water, keep the contact meter in its band, and lift at anything the sighter
+does that the current cannot explain. Then keep a bend in the rod, give line when
+it runs, and drop the rod tip to lead a beaten fish to your feet.
+
+Casting is a real cast, not a button. The leader is a rope with mass on the end,
+so you load it by moving the rod back, drive it upstream, and stop — the stop is
+what unloads it and throws the flies. A slow drag just tows them. A good sweep
+gains one to three metres of upstream water; do it twice to reach the top of the
+run. **Nothing anywhere in the simulator asks how the flies got wet** — a fly in
+the water is fishing, full stop.
 
 Three beats, each of which wants a different rig:
 
@@ -99,6 +109,12 @@ details make it behave like real tackle:
 
 Bed and boulder collision with tangential friction gives you the ticking — and
 the anchored, dragging nymph when you go too heavy.
+
+Fishing state is derived, never declared. A drift begins when the point fly goes
+under and ends when it comes out or reaches you; trout evaluate any fly that is
+in the water. An earlier version gated all of this behind a cast button, so flies
+flicked out by hand drifted through a lie completely ignored — the kind of bug
+that only a state machine can produce.
 
 **The fish** (`src/fish.js`) judge a fly the way a trout would: how close it is,
 how near the bed it is, and how far its velocity differs from the water around it.

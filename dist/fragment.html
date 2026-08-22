@@ -51,7 +51,10 @@ html, body {
   pointer-events: none;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  /* Messages live up in the sky. The water is where the fishing is — nothing
+     is allowed to sit on top of it. */
+  justify-content: flex-start;
+  gap: 8px;
   padding: 14px;
 }
 
@@ -67,48 +70,21 @@ html, body {
 }
 #phase strong { color: var(--text); font-weight: 600; }
 
-#bottom-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 #log {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   align-items: flex-start;
-  max-width: 62%;
+  max-width: 58%;
 }
 
-#touch-controls { pointer-events: auto; flex: 0 0 auto; }
-
-#btn-action {
-  width: 88px;
-  height: 88px;
-  border-radius: 50%;
-  background: rgba(255, 176, 58, 0.16);
-  border: 2px solid var(--accent);
-  color: var(--accent);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: none;
-  user-select: none;
-}
-#btn-action:active {
-  background: rgba(255, 176, 58, 0.34);
-  transform: scale(0.96);
-}
 .msg {
   background: rgba(10, 18, 22, 0.82);
   border-left: 3px solid var(--muted);
   border-radius: 4px;
-  padding: 6px 11px;
-  font-size: 13px;
-  line-height: 1.35;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  line-height: 1.3;
 }
 .msg.good { border-color: var(--good); }
 .msg.bad { border-color: var(--bad); }
@@ -259,9 +235,10 @@ details b { color: var(--text); font-weight: 600; }
 @media (max-width: 860px) {
   #app { flex-direction: column; }
   #panel { flex: 0 0 auto; max-height: 46%; border-left: none; border-top: 1px solid var(--line); }
-  #log { max-width: 60%; }
+  #log { max-width: 92%; }
   /* Keep the log from swallowing a small screen. */
   #log .msg:nth-child(n + 3) { display: none; }
+  .msg { font-size: 11.5px; padding: 4px 8px; }
   #overlay { padding: 10px; }
   #phase { font-size: 12px; padding: 5px 12px; text-align: center; }
 }
@@ -273,13 +250,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   <div id="stage">
     <canvas id="scene"></canvas>
     <div id="overlay">
-      <div id="phase">Move the mouse to hold the rod tip — <strong>click</strong> to cast</div>
-      <div id="bottom-row">
-        <div id="log"></div>
-        <div id="touch-controls" hidden>
-          <button id="btn-action" type="button">CAST</button>
-        </div>
-      </div>
+      <div id="phase">Move the rod with the pointer — sweep it upstream to flick the flies out</div>
+      <div id="log"></div>
     </div>
   </div>
 
@@ -389,13 +361,14 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
     <details>
       <summary>How to fish it</summary>
-      <p><b>Cast</b> with <kbd>click</kbd> or <kbd>Space</kbd>. The flies tuck in upstream and start sinking.</p>
+      <p><b>Cast</b> by moving the rod. Sweep the tip up and upstream and the weight of the flies carries them out; drop the tip and they drop in and start sinking. There is no cast button — the leader is a real rope and you are throwing it.</p>
       <p><b>Lead the sighter</b> downstream at the speed of the water. Contact wants to sit in the marked band: tight enough that a take moves the sighter, loose enough that you are not towing the flies.</p>
       <p><b>Get down.</b> Fish eat within about 30 cm of the bed. Deeper or faster water needs a heavier bead, a longer leader, or a cast further upstream.</p>
       <p><b>Strike</b> at anything the sighter does that the current did not do — a stall, a tick, a lift. You have a few tenths of a second. Sweep the rod tip up (or up and downstream) to set the hook, or use <kbd>click</kbd> / <kbd>Space</kbd>. A slow raise through the drift will not trip it; a sharp one will.</p>
-      <p><b>Play it</b> by holding the mouse button to gather line and releasing to give it back. Watch the tippet load.</p>
-      <p><b>On a phone or tablet:</b> drag anywhere on the water to hold the rod tip, and use the round button to cast, strike, and gather line.</p>
-      <p>Keys: <kbd>Space</kbd> cast / strike · <kbd>R</kbd> recast · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> beats</p>
+      <p><b>Play it</b> by holding the pointer down to gather line and releasing to give it back. Watch the tippet load.</p>
+      <p><b>On a phone or tablet:</b> drag to move the rod, flick up to set, and press and hold to gather line while you steer.</p>
+      <p><kbd>R</kbd> drops the rig back under the tip if you tangle it or want to start again.</p>
+      <p>Keys: <kbd>Space</kbd> gather line · <kbd>R</kbd> reset the rig · <kbd>C</kbd> tuck cast (fallback) · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> beats</p>
     </details>
   </aside>
 </div>
@@ -664,22 +637,22 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     for (var i = 0; i < n; i++) {
       var f = i / (n - 1);
       var section = 'butt';
-      var waterRate = 95, airRate = 1.6;
+      var waterRate = 95, airRate = 1.1;
       if (f >= c.sighterFrom && f <= c.sighterTo) {
         section = 'sighter';
-        waterRate = 115; airRate = 2.1;
+        waterRate = 115; airRate = 1.5;
       } else if (f > c.sighterTo) {
         section = 'tippet';
         // Thinner tippet cuts the current better -> less belly below the sighter.
         waterRate = 55 * (0.14 / c.tippet);
-        airRate = 1.2;
+        airRate = 0.8;
       }
       var isPoint = (i === n - 1);
       this.nodes.push(new Node(0, 0, {
         invMass: i === 0 ? 0 : 1 / (isPoint ? pointMass : monoMass),
         buoy: isPoint ? BUOY.fly : BUOY.mono,
         waterRate: isPoint ? G * BUOY.fly / beadSinkRate(c.pointBead) : waterRate,
-        airRate: isPoint ? 0.9 : airRate,
+        airRate: isPoint ? 0.45 : airRate,
         section: isPoint ? 'point' : section,
         pinned: i === 0
       }));
@@ -698,7 +671,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
         invMass: 1 / dropperMass,
         buoy: BUOY.fly,
         waterRate: G * BUOY.fly / beadSinkRate(c.dropperBead),
-        airRate: 0.9,
+        airRate: 0.5,
         section: 'dropper',
         pinned: false
       }));
@@ -1264,9 +1237,13 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.rig = new EN.Rig({ leaderLength: 3.2, pointBead: 3.5, tippet: 0.14 });
     this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 1.0, this.tip.y - 1.2);
 
-    this.phase = 'ready';
+    // Only two states now. Everything that is not playing a fish is fishing,
+    // however the flies got into the water.
+    this.phase = 'fishing';
     this.phaseTime = 0;
-    this.driftTime = 0;
+    this.driftActive = false;
+    this.driftLocked = false;
+    this.dryTime = 0;
     this.showLies = false;
     this.paused = false;
 
@@ -1281,7 +1258,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.coachCooldown = 0;
     this.events = [];
 
-    this.say('Left-click or press Space to make a tuck cast upstream.', 'info');
+    this.say('Sweep the rod upstream to flick the flies out, then lead them down.', 'info');
   }
 
   Game.prototype._blankDrift = function () {
@@ -1289,8 +1266,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   };
 
   Game.prototype.say = function (text, kind) {
-    this.messages.unshift({ text: text, kind: kind || 'info', life: 5.5 });
-    if (this.messages.length > 4) this.messages.length = 4;
+    this.messages.unshift({ text: text, kind: kind || 'info', life: 4.5 });
+    if (this.messages.length > 3) this.messages.length = 3;
   };
 
   Game.prototype.coach = function (text) {
@@ -1321,8 +1298,11 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.rig.gathering = false;
     this.rig.lineOut = this.rig.config.leaderLength;
     this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 0.9, this.tip.y - 1.3);
-    this.phase = 'ready';
+    this.phase = 'fishing';
     this.phaseTime = 0;
+    this.driftActive = false;
+    this.driftLocked = false;
+    this.dryTime = 0;
     this.drift = this._blankDrift();
     this._resetLift(0);
   };
@@ -1364,16 +1344,15 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       if (near < 0.5) f.spook = Math.min(1, f.spook + this.river.preset.spook * (1 - near / 0.5));
     }
 
-    this.phase = 'drifting';
-    this.phaseTime = 0;
-    this.driftTime = 0;
+    this.driftActive = false;
+    this.driftLocked = false;
+    this.dryTime = 0;
     this.drift = this._blankDrift();
     this._resetLift(0.6);
   };
 
   Game.prototype.strike = function () {
     if (this.phase === 'fighting') return;
-    if (this.phase !== 'drifting') { this.cast(); return; }
 
     var fish = this.school.active();
     if (fish && fish.state === 'taken') {
@@ -1388,6 +1367,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
         this.rig.lineOut = clamp(span - 0.25, 0.9, this.rig.config.leaderLength);
         this.phase = 'fighting';
         this.phaseTime = 0;
+        this.driftActive = false;
         this.stats.hooked++;
         this.say('Hooked up — ' + fish.lengthCm + ' cm ' + fish.species.name.toLowerCase() + '!', 'good');
       } else {
@@ -1405,13 +1385,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
         }
         this._liftFlies();
       }
-      return;
     }
-
-    // A strike at nothing is not free: it yanks the flies off the bottom.
-    this.stats.missed++;
-    this._liftFlies();
-    this.say('Nothing there — that lift pulled the flies up.', 'info');
+    // A lift with nothing on it is just how you pick the flies up to recast.
+    // The cost is already real — you gave up the rest of the drift.
   };
 
   Game.prototype._liftFlies = function () {
@@ -1459,7 +1435,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     for (var s = 0; s < steps; s++) this.rig.step(sub, this.tip, this.river);
 
     this._updateFish(dt);
-    if (this.phase === 'drifting') this._scoreDrift(dt);
+    if (this.phase !== 'fighting') this._trackDrift(dt);
   };
 
   Game.prototype._anchorTo = function (fish) {
@@ -1484,11 +1460,18 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.lift = (this.tip.y - this.tipLag.y)
               + Math.max(0, this.tip.x - this.tipLag.x) * 0.5;
 
-    if (this.liftStrike && this.phase === 'drifting' &&
+    // Only a lift with the flies actually in the water can set a hook.
+    if (this.liftStrike && this.phase !== 'fighting' && this._anyFlyWet() &&
         this.liftCooldown <= 0 && this.lift > this.liftThreshold) {
       this.liftCooldown = 0.9;
       this.strike();
     }
+  };
+
+  Game.prototype._anyFlyWet = function () {
+    if (this.rig.point().y < 0) return true;
+    var d = this.rig.dropper();
+    return !!(d && d.y < 0);
   };
 
   Game.prototype._resetLift = function (delay) {
@@ -1499,9 +1482,15 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   };
 
   Game.prototype._updateFish = function (dt) {
-    var flies = [this.rig.point()];
-    var dropper = this.rig.dropper();
-    if (dropper) flies.push(dropper);
+    // A fly only fishes when it is in the water. How it got there — a tuck
+    // cast, or a sweep of the rod — is none of the trout's business.
+    var flies = [];
+    if (this.phase !== 'fighting') {
+      var point = this.rig.point();
+      if (point.y < 0) flies.push(point);
+      var dropper = this.rig.dropper();
+      if (dropper && dropper.y < 0) flies.push(dropper);
+    }
 
     // Nothing has hold of a fly unless a fish does.
     var busy = this.school.active();
@@ -1512,15 +1501,11 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       if (f.state === 'landed' || f.state === 'lost') continue;
 
       if (f.state === 'holding') {
-        if (this.phase === 'drifting') {
-          var ev = f.updateHolding(dt, flies);
-          if (ev && ev.type === 'take') {
-            this.stats.takes++;
-            this._anchorTo(f);
-            this.say('Take!', 'alert');
-          }
-        } else {
-          f.updateHolding(dt, []);
+        var ev = f.updateHolding(dt, flies);
+        if (ev && ev.type === 'take') {
+          this.stats.takes++;
+          this._anchorTo(f);
+          this.say('Take!', 'alert');
         }
       } else if (f.state === 'taken') {
         this._anchorTo(f);
@@ -1551,8 +1536,11 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
   Game.prototype._endFight = function (fish, res) {
     this.rig.anchor = null;
-    this.phase = 'ready';
+    this.phase = 'fishing';
     this.phaseTime = 0;
+    this.driftActive = false;
+    this.driftLocked = true;
+    this.dryTime = 0;
     this.rig.lineOut = this.rig.config.leaderLength;
 
     if (res.type === 'landed') {
@@ -1571,49 +1559,87 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.school.reset();
   };
 
+  /**
+   * A drift begins when the point fly goes into the water and ends when it
+   * comes out again or reaches you. Nothing here cares how the flies got there,
+   * which is the whole point: flick them upstream with the rod and you are
+   * fishing, exactly as you would be off a tuck cast.
+   */
+  Game.prototype._trackDrift = function (dt) {
+    var p = this.rig.point();
+    var wet = p.y < 0;
+    var past = p.x > this.grip.x - 0.35;
+
+    if (!wet) {
+      this.dryTime += dt;
+      // A moment in the air is a wave slapping the fly, not the end of a drift.
+      if (this.dryTime > 0.35) {
+        this.driftLocked = false;
+        if (this.driftActive) {
+          this.driftActive = false;
+          this._finishDrift();
+        }
+      }
+      return;
+    }
+
+    this.dryTime = 0;
+    // Once the flies have swung past you they have to be put back upstream
+    // before they count as a new drift.
+    if (this.driftLocked && !past && p.x < this.grip.x - 1.2) this.driftLocked = false;
+
+    if (!this.driftActive) {
+      if (this.driftLocked || past) return;
+      this.driftActive = true;
+      this.drift = this._blankDrift();
+      this.driftTime = 0;
+      // Don't read the tail of the casting sweep as a hookset.
+      this._resetLift(0.3);
+    }
+
+    this.driftTime += dt;
+    this._scoreDrift(dt);
+
+    if (past && !this.school.active()) {
+      this.driftActive = false;
+      this.driftLocked = true;
+      this._finishDrift();
+    }
+  };
+
   Game.prototype._scoreDrift = function (dt) {
     var river = this.river;
     var p = this.rig.point();
     var d = this.drift;
     d.t += dt;
+    d.submerged += dt;
 
-    if (p.y < 0) {
-      d.submerged += dt;
-      var above = river.heightAboveBed(p.x, p.y);
-      var u = river.speedAt(p.x, p.y);
-      var dragErr = Math.abs(p.vx - u);
+    var above = river.heightAboveBed(p.x, p.y);
+    var u = river.speedAt(p.x, p.y);
+    var dragErr = Math.abs(p.vx - u);
 
-      if (above < 0.28) d.zone += dt;
-      if (dragErr < 0.14) d.dead += dt;
-      if (this.rig.contact > 0.82 && this.rig.contact < 0.998) d.contact += dt;
+    if (above < 0.28) d.zone += dt;
+    if (dragErr < 0.14) d.dead += dt;
+    if (this.rig.contact > 0.82 && this.rig.contact < 0.998) d.contact += dt;
 
-      if (d.submerged > 1.2) {
-        if (above > 0.55) {
-          this.coach('You are riding high. Cast further upstream, go heavier, or lengthen the leader.');
-        } else if (this.rig.contact < 0.72) {
-          this.coach('Big belly in the leader — raise the tip and lead the sighter with the drift.');
-        } else if (dragErr > 0.30 && this.rig.contact > 0.99) {
-          this.coach('You are dragging the flies. Let the sighter travel at the speed of the water.');
-        } else if (Math.abs(p.vx) < 0.05 && above < 0.05) {
-          this.coach('Anchored on the bottom. Lighter bug, or lift a touch.');
-        }
+    if (d.submerged > 1.2) {
+      if (above > 0.55) {
+        this.coach('You are riding high. Flick the flies further upstream, go heavier, or lengthen the leader.');
+      } else if (this.rig.contact < 0.72) {
+        this.coach('Big belly in the leader — raise the tip and lead the sighter with the drift.');
+      } else if (dragErr > 0.30 && this.rig.contact > 0.99) {
+        this.coach('You are dragging the flies. Let the sighter travel at the speed of the water.');
+      } else if (Math.abs(p.vx) < 0.05 && above < 0.05) {
+        this.coach('Anchored on the bottom. Lighter bug, or lift a touch.');
       }
-    }
-
-    // Drift is over once the flies come level with you.
-    if (this.school.active()) return;
-    if (p.x > this.grip.x - 0.35 || this.phaseTime > 26) {
-      this._finishDrift();
     }
   };
 
   Game.prototype._finishDrift = function () {
     var d = this.drift;
-    this.phase = 'ready';
     this.phaseTime = 0;
-    this.rig.anchor = null;
 
-    // A cast that skated through without ever fishing does not get scored.
+    // A pass that skated through without ever fishing does not get scored.
     if (d.submerged < 0.4) return;
     this.stats.drifts++;
 
@@ -2181,30 +2207,18 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
    'drag-val', 'drag-fill', 'fight-section', 'tension-val', 'tension-fill', 'tension-band',
    'stamina-val', 'stamina-fill', 'preset', 'bead', 'bead-val', 'leader', 'leader-val',
    'tippet', 'dropper', 'lies', 'reset', 's-drifts', 's-takes', 's-hooked', 's-landed',
-   's-best', 's-zone', 's-dead', 's-last', 'touch-controls', 'btn-action',
+   's-best', 's-zone', 's-dead', 's-last',
    'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
 
-  // On a touchscreen a tap cannot mean both "put the rod here" and "strike" —
-  // you would set the hook every time you moved the rod. So on touch the canvas
-  // only aims the rod and a button does the casting, striking and gathering.
+  // Everything is done with the rod itself: sweep it to cast, lift it to set,
+  // hold the pointer down to gather line while a fish is on.
   var touchMode = false;
   try {
     touchMode = window.matchMedia('(pointer: coarse)').matches;
   } catch (e) { /* older browsers: fall back to detecting a touch pointer */ }
-
-  function setTouchMode(on) {
-    if (on === touchMode) return;
-    touchMode = on;
-    el['touch-controls'].hidden = !on;
-  }
-
-  function doAction() {
-    if (game.phase === 'fighting') game.gathering = true;
-    else game.strike();
-  }
 
   function pointerToWorld(ev) {
     var rect = canvas.getBoundingClientRect();
@@ -2219,11 +2233,12 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
   canvas.addEventListener('pointerdown', function (ev) {
     ev.preventDefault();
-    if (ev.pointerType === 'touch' || ev.pointerType === 'pen') setTouchMode(true);
+    if (ev.pointerType === 'touch' || ev.pointerType === 'pen') touchMode = true;
     try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* not fatal */ }
     var w = pointerToWorld(ev);
     game.setTipTarget(w.x, w.y);
-    if (!touchMode) doAction();
+    // Only means anything with a fish on, so it costs nothing the rest of the time.
+    game.gathering = true;
   });
 
   function releasePointer() { game.gathering = false; }
@@ -2237,10 +2252,14 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     switch (ev.key) {
       case ' ':
         ev.preventDefault();
-        if (game.phase === 'fighting') game.gathering = true; else game.strike();
+        game.gathering = true;
         break;
       case 'r': case 'R':
-        if (game.phase !== 'fighting') { game.resetDrift(); game.cast(); }
+        if (game.phase !== 'fighting') game.resetDrift();
+        break;
+      case 'c': case 'C':
+        // Keyboard-only fallback for anyone who cannot get the sweep to load.
+        if (game.phase !== 'fighting') game.cast();
         break;
       case 'l': case 'L':
         el.lies.checked = !el.lies.checked;
@@ -2258,18 +2277,6 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   window.addEventListener('keyup', function (ev) {
     if (ev.key === ' ') game.gathering = false;
   });
-
-  el['btn-action'].addEventListener('pointerdown', function (ev) {
-    ev.preventDefault();
-    ev.stopPropagation();
-    doAction();
-  });
-  el['btn-action'].addEventListener('pointerup', releasePointer);
-  el['btn-action'].addEventListener('pointercancel', releasePointer);
-  el['btn-action'].addEventListener('pointerleave', releasePointer);
-  el['btn-action'].addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
-
-  el['touch-controls'].hidden = !touchMode;
 
   window.addEventListener('resize', function () { renderer.resize(); });
   window.addEventListener('orientationchange', function () {
@@ -2334,18 +2341,16 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   // ---- HUD -----------------------------------------------------------------
 
   var PHASE_TEXT = {
-    ready: 'Ready — <strong>click</strong> or <kbd>Space</kbd> to tuck a cast upstream',
+    idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>sweep the rod up</strong> to set',
     fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it'
   };
 
   var PHASE_TEXT_TOUCH = {
-    ready: 'Drag to hold the rod tip — tap <strong>CAST</strong>',
+    idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>flick up</strong> to set',
-    fighting: 'Fish on — <strong>hold GATHER</strong> to take line, let go to give it'
+    fighting: 'Fish on — <strong>press and hold</strong> to gather line, let go to give it'
   };
-
-  var ACTION_LABEL = { ready: 'CAST', drifting: 'STRIKE', fighting: 'GATHER' };
 
   function setFill(node, pct, color) {
     node.style.width = clamp(pct, 0, 100).toFixed(1) + '%';
@@ -2358,10 +2363,11 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     var hud = game.hudState();
     var s = game.stats;
 
+    var cue = game.phase === 'fighting' ? 'fighting'
+            : (game.driftActive ? 'drifting' : 'idle');
     el.phase.innerHTML = game.paused
       ? 'Paused — <kbd>P</kbd> to resume'
-      : (touchMode ? PHASE_TEXT_TOUCH : PHASE_TEXT)[game.phase];
-    if (touchMode) el['btn-action'].textContent = ACTION_LABEL[game.phase] || 'CAST';
+      : (touchMode ? PHASE_TEXT_TOUCH : PHASE_TEXT)[cue];
 
     // Contact: the band is where a take actually reaches you.
     var c = hud.contact * 100;
@@ -2388,7 +2394,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
     var fighting = game.phase === 'fighting';
     el['fight-section'].hidden = !fighting;
-    el['drift-section'].classList.toggle('dim', fighting);
+    el['drift-section'].classList.toggle('dim', fighting || !game.driftActive);
     if (fighting) {
       var maxLoad = 2.0;
       var breakAt = game.tippetStrength() * 0.86;
