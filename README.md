@@ -43,17 +43,25 @@ node tools/build-single-file.js
 | --- | --- |
 | Hold the rod tip | move the pointer |
 | Tuck cast upstream | click, or <kbd>Space</kbd> |
-| Strike | click, or <kbd>Space</kbd> |
+| Strike | sweep the rod tip up — or click / <kbd>Space</kbd> |
 | Gather line (while a fish is on) | hold the pointer button |
 | Recast | <kbd>R</kbd> |
 | Learning mode (reveal lies and fish) | <kbd>L</kbd> |
 | Pause | <kbd>P</kbd> |
 | Switch beat | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> |
 
+The natural way to strike is the real one: sweep the rod tip up, or up and
+slightly downstream. A lift is measured as how much ground the tip gained on a
+lagged copy of itself over the last fifth of a second, so it reads the *gesture*
+rather than raw speed — easing the rod up through a drift never trips it, a sharp
+sweep always does. Measured on both mouse and touch, leading a drift peaks around
+0.12 while a deliberate sweep lands between 0.45 and 0.71, against a default
+trigger of 0.26. There is a sensitivity control, and you can turn it off.
+
 On a touchscreen a tap cannot mean both "put the rod here" and "strike" — you
 would set the hook every time you moved the rod. So on touch devices the water
-only aims the rod and a round button handles casting, striking and gathering
-line. This switches on automatically.
+only aims the rod, a flick up sets the hook, and a round button handles casting
+and gathering line. This switches on automatically.
 
 The loop: tuck a cast upstream, lead the sighter downstream at the speed of the
 water, keep the contact meter in its band, and lift at anything the sighter does
@@ -132,7 +140,8 @@ The numbers worth playing with:
 - `src/rig.js` — `DEFAULTS` and `beadSinkRate()`.
 - `src/fish.js` — the interest rate in `updateHolding`, `hookChance`, and the
   fight constants in `updateHooked`.
-- `src/game.js` — drift scoring thresholds and the coaching rules in `_scoreDrift`.
+- `src/game.js` — drift scoring thresholds, the coaching rules in `_scoreDrift`,
+  and `LIFT_LAG` / `LIFT_DEFAULT` for hookset detection.
 
 ## Licence
 

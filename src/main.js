@@ -15,7 +15,8 @@
    'drag-val', 'drag-fill', 'fight-section', 'tension-val', 'tension-fill', 'tension-band',
    'stamina-val', 'stamina-fill', 'preset', 'bead', 'bead-val', 'leader', 'leader-val',
    'tippet', 'dropper', 'lies', 'reset', 's-drifts', 's-takes', 's-hooked', 's-landed',
-   's-best', 's-zone', 's-dead', 's-last', 'touch-controls', 'btn-action'
+   's-best', 's-zone', 's-dead', 's-last', 'touch-controls', 'btn-action',
+   'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
@@ -140,6 +141,19 @@
 
   el.lies.addEventListener('change', function () { game.showLies = el.lies.checked; });
 
+  var SENS_LABEL = { 1: 'very firm', 2: 'firm', 3: 'normal', 4: 'light', 5: 'hair trigger' };
+
+  function applyLiftSettings() {
+    var sens = parseInt(el['lift-sens'].value, 10);
+    game.liftStrike = el.lift.checked;
+    game.liftThreshold = 0.38 - (sens - 1) * 0.06;
+    el['lift-val'].textContent = SENS_LABEL[sens];
+    el['lift-field'].style.opacity = el.lift.checked ? '1' : '0.4';
+  }
+
+  el.lift.addEventListener('change', applyLiftSettings);
+  el['lift-sens'].addEventListener('input', applyLiftSettings);
+
   el.reset.addEventListener('click', function () {
     var keep = game.rig.config;
     game = new EN.Game();
@@ -148,19 +162,20 @@
     game.showLies = el.lies.checked;
     renderer.game = game;
     EN.game = game;
+    applyLiftSettings();
   });
 
   // ---- HUD -----------------------------------------------------------------
 
   var PHASE_TEXT = {
     ready: 'Ready — <strong>click</strong> or <kbd>Space</kbd> to tuck a cast upstream',
-    drifting: 'Drifting — lead the sighter, strike at anything odd',
+    drifting: 'Drifting — lead the sighter, <strong>sweep the rod up</strong> to set',
     fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it'
   };
 
   var PHASE_TEXT_TOUCH = {
     ready: 'Drag to hold the rod tip — tap <strong>CAST</strong>',
-    drifting: 'Drifting — lead the sighter, tap <strong>STRIKE</strong> at anything odd',
+    drifting: 'Drifting — lead the sighter, <strong>flick up</strong> to set',
     fighting: 'Fish on — <strong>hold GATHER</strong> to take line, let go to give it'
   };
 
@@ -221,6 +236,14 @@
       setFill(el['stamina-fill'], hud.stamina * 100, '#ffb03a');
     }
 
+    // Show how close the last rod movement came to registering as a set.
+    var liftPct = clamp(game.lift / Math.max(0.05, game.liftThreshold), 0, 1.4) * 71;
+    el['lift-read'].textContent = game.liftStrike
+      ? (game.liftCooldown > 0 ? 'set' : Math.round(liftPct / 0.71) + '%')
+      : 'off';
+    setFill(el['lift-fill'], liftPct,
+      game.liftCooldown > 0 ? '#ffd75e' : (liftPct > 71 ? '#ffb03a' : '#5b7f8c'));
+
     el['s-drifts'].textContent = s.drifts;
     el['s-takes'].textContent = s.takes;
     el['s-hooked'].textContent = s.hooked;
@@ -262,6 +285,7 @@
     requestAnimationFrame(frame);
   }
 
+  applyLiftSettings();
   renderer.resize();
   updateHud();
   requestAnimationFrame(frame);

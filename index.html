@@ -98,6 +98,18 @@
     </section>
 
     <section>
+      <h2>Hookset</h2>
+      <label class="check"><input type="checkbox" id="lift" checked> Strike by lifting the rod</label>
+      <label class="field" id="lift-field">Lift sensitivity — <span id="lift-val">normal</span>
+        <input type="range" id="lift-sens" min="1" max="5" step="1" value="3">
+      </label>
+      <div class="meter">
+        <div class="meter-head"><span>Lift</span><span id="lift-read">—</span></div>
+        <div class="track"><div class="fill" id="lift-fill"></div></div>
+      </div>
+    </section>
+
+    <section>
       <h2>Session</h2>
       <dl class="rows">
         <dt>Drifts</dt><dd id="s-drifts">0</dd>
@@ -120,7 +132,7 @@
       <p><b>Cast</b> with <kbd>click</kbd> or <kbd>Space</kbd>. The flies tuck in upstream and start sinking.</p>
       <p><b>Lead the sighter</b> downstream at the speed of the water. Contact wants to sit in the marked band: tight enough that a take moves the sighter, loose enough that you are not towing the flies.</p>
       <p><b>Get down.</b> Fish eat within about 30 cm of the bed. Deeper or faster water needs a heavier bead, a longer leader, or a cast further upstream.</p>
-      <p><b>Strike</b> with <kbd>click</kbd> or <kbd>Space</kbd> at anything the sighter does that the current did not do — a stall, a tick, a lift. You have a few tenths of a second.</p>
+      <p><b>Strike</b> at anything the sighter does that the current did not do — a stall, a tick, a lift. You have a few tenths of a second. Sweep the rod tip up (or up and downstream) to set the hook, or use <kbd>click</kbd> / <kbd>Space</kbd>. A slow raise through the drift will not trip it; a sharp one will.</p>
       <p><b>Play it</b> by holding the mouse button to gather line and releasing to give it back. Watch the tippet load.</p>
       <p><b>On a phone or tablet:</b> drag anywhere on the water to hold the rod tip, and use the round button to cast, strike, and gather line.</p>
       <p>Keys: <kbd>Space</kbd> cast / strike · <kbd>R</kbd> recast · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> beats</p>

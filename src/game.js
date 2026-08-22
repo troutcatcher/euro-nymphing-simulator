@@ -8,6 +8,12 @@
   var clamp = EN.clamp;
   var PHYS_DT = 1 / 240;
 
+  // How a lift is recognised. The rod tip is compared against a lagged copy of
+  // itself, so what counts is how much ground it gained in the last fifth of a
+  // second — a sharp sweep trips it, easing the rod up through a drift does not.
+  var LIFT_LAG = 0.20;
+  var LIFT_DEFAULT = 0.26;
+
   var TIPPET = {
     0.10: { label: '0.10 mm (7X)', strength: 0.62 },
     0.12: { label: '0.12 mm (6X)', strength: 0.80 },
@@ -26,6 +32,12 @@
     this.tip = { x: 5.3, y: 1.9 };
     this.tipTarget = { x: 5.3, y: 1.9 };
     this.gathering = false;
+
+    this.liftStrike = true;             // set the hook by sweeping the rod up
+    this.liftThreshold = LIFT_DEFAULT;
+    this.tipLag = { x: 5.3, y: 1.9 };
+    this.lift = 0;
+    this.liftCooldown = 0;
 
     this.rig = new EN.Rig({ leaderLength: 3.2, pointBead: 3.5, tippet: 0.14 });
     this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 1.0, this.tip.y - 1.2);
@@ -90,6 +102,7 @@
     this.phase = 'ready';
     this.phaseTime = 0;
     this.drift = this._blankDrift();
+    this._resetLift(0);
   };
 
   /** Rod tip follows the pointer, but only as far as a 10'6" rod can reach. */
@@ -133,6 +146,7 @@
     this.phaseTime = 0;
     this.driftTime = 0;
     this.drift = this._blankDrift();
+    this._resetLift(0.6);
   };
 
   Game.prototype.strike = function () {
@@ -179,6 +193,7 @@
   };
 
   Game.prototype._liftFlies = function () {
+    this._resetLift(0.5);
     var p = this.rig.point();
     p.vy += 2.4; p.vx -= 0.5;
     var d = this.rig.dropper();
@@ -201,6 +216,8 @@
     var k = Math.min(1, dt * 16);
     this.tip.x += (this.tipTarget.x - this.tip.x) * k;
     this.tip.y += (this.tipTarget.y - this.tip.y) * k;
+
+    this._updateLift(dt);
 
     this.rig.gathering = this.gathering && this.phase === 'fighting';
     if (this.phase === 'fighting') {
@@ -226,6 +243,37 @@
   Game.prototype._anchorTo = function (fish) {
     var m = fish.mouth();
     this.rig.anchor = { x: m.x, y: m.y, node: fish.takenFly || this.rig.point() };
+  };
+
+  /**
+   * Watch the rod tip for a hookset. A lift is measured as displacement against
+   * a lagged copy of the tip rather than instantaneous speed, so it reads the
+   * gesture — a sharp sweep up and slightly downstream — instead of firing on
+   * one jittery frame.
+   */
+  Game.prototype._updateLift = function (dt) {
+    var lag = 1 - Math.exp(-dt / LIFT_LAG);
+    this.tipLag.x += (this.tip.x - this.tipLag.x) * lag;
+    this.tipLag.y += (this.tip.y - this.tipLag.y) * lag;
+    this.liftCooldown = Math.max(0, this.liftCooldown - dt);
+
+    // Up counts fully; a downstream sweep counts for half, the way a sideways
+    // set still drives the hook home.
+    this.lift = (this.tip.y - this.tipLag.y)
+              + Math.max(0, this.tip.x - this.tipLag.x) * 0.5;
+
+    if (this.liftStrike && this.phase === 'drifting' &&
+        this.liftCooldown <= 0 && this.lift > this.liftThreshold) {
+      this.liftCooldown = 0.9;
+      this.strike();
+    }
+  };
+
+  Game.prototype._resetLift = function (delay) {
+    this.tipLag.x = this.tip.x;
+    this.tipLag.y = this.tip.y;
+    this.lift = 0;
+    this.liftCooldown = delay || 0;
   };
 
   Game.prototype._updateFish = function (dt) {

@@ -358,6 +358,18 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     </section>
 
     <section>
+      <h2>Hookset</h2>
+      <label class="check"><input type="checkbox" id="lift" checked> Strike by lifting the rod</label>
+      <label class="field" id="lift-field">Lift sensitivity — <span id="lift-val">normal</span>
+        <input type="range" id="lift-sens" min="1" max="5" step="1" value="3">
+      </label>
+      <div class="meter">
+        <div class="meter-head"><span>Lift</span><span id="lift-read">—</span></div>
+        <div class="track"><div class="fill" id="lift-fill"></div></div>
+      </div>
+    </section>
+
+    <section>
       <h2>Session</h2>
       <dl class="rows">
         <dt>Drifts</dt><dd id="s-drifts">0</dd>
@@ -380,7 +392,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       <p><b>Cast</b> with <kbd>click</kbd> or <kbd>Space</kbd>. The flies tuck in upstream and start sinking.</p>
       <p><b>Lead the sighter</b> downstream at the speed of the water. Contact wants to sit in the marked band: tight enough that a take moves the sighter, loose enough that you are not towing the flies.</p>
       <p><b>Get down.</b> Fish eat within about 30 cm of the bed. Deeper or faster water needs a heavier bead, a longer leader, or a cast further upstream.</p>
-      <p><b>Strike</b> with <kbd>click</kbd> or <kbd>Space</kbd> at anything the sighter does that the current did not do — a stall, a tick, a lift. You have a few tenths of a second.</p>
+      <p><b>Strike</b> at anything the sighter does that the current did not do — a stall, a tick, a lift. You have a few tenths of a second. Sweep the rod tip up (or up and downstream) to set the hook, or use <kbd>click</kbd> / <kbd>Space</kbd>. A slow raise through the drift will not trip it; a sharp one will.</p>
       <p><b>Play it</b> by holding the mouse button to gather line and releasing to give it back. Watch the tippet load.</p>
       <p><b>On a phone or tablet:</b> drag anywhere on the water to hold the rod tip, and use the round button to cast, strike, and gather line.</p>
       <p>Keys: <kbd>Space</kbd> cast / strike · <kbd>R</kbd> recast · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> beats</p>
@@ -1218,6 +1230,12 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   var clamp = EN.clamp;
   var PHYS_DT = 1 / 240;
 
+  // How a lift is recognised. The rod tip is compared against a lagged copy of
+  // itself, so what counts is how much ground it gained in the last fifth of a
+  // second — a sharp sweep trips it, easing the rod up through a drift does not.
+  var LIFT_LAG = 0.20;
+  var LIFT_DEFAULT = 0.26;
+
   var TIPPET = {
     0.10: { label: '0.10 mm (7X)', strength: 0.62 },
     0.12: { label: '0.12 mm (6X)', strength: 0.80 },
@@ -1236,6 +1254,12 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.tip = { x: 5.3, y: 1.9 };
     this.tipTarget = { x: 5.3, y: 1.9 };
     this.gathering = false;
+
+    this.liftStrike = true;             // set the hook by sweeping the rod up
+    this.liftThreshold = LIFT_DEFAULT;
+    this.tipLag = { x: 5.3, y: 1.9 };
+    this.lift = 0;
+    this.liftCooldown = 0;
 
     this.rig = new EN.Rig({ leaderLength: 3.2, pointBead: 3.5, tippet: 0.14 });
     this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 1.0, this.tip.y - 1.2);
@@ -1300,6 +1324,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.phase = 'ready';
     this.phaseTime = 0;
     this.drift = this._blankDrift();
+    this._resetLift(0);
   };
 
   /** Rod tip follows the pointer, but only as far as a 10'6" rod can reach. */
@@ -1343,6 +1368,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.phaseTime = 0;
     this.driftTime = 0;
     this.drift = this._blankDrift();
+    this._resetLift(0.6);
   };
 
   Game.prototype.strike = function () {
@@ -1389,6 +1415,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   };
 
   Game.prototype._liftFlies = function () {
+    this._resetLift(0.5);
     var p = this.rig.point();
     p.vy += 2.4; p.vx -= 0.5;
     var d = this.rig.dropper();
@@ -1411,6 +1438,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     var k = Math.min(1, dt * 16);
     this.tip.x += (this.tipTarget.x - this.tip.x) * k;
     this.tip.y += (this.tipTarget.y - this.tip.y) * k;
+
+    this._updateLift(dt);
 
     this.rig.gathering = this.gathering && this.phase === 'fighting';
     if (this.phase === 'fighting') {
@@ -1436,6 +1465,37 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   Game.prototype._anchorTo = function (fish) {
     var m = fish.mouth();
     this.rig.anchor = { x: m.x, y: m.y, node: fish.takenFly || this.rig.point() };
+  };
+
+  /**
+   * Watch the rod tip for a hookset. A lift is measured as displacement against
+   * a lagged copy of the tip rather than instantaneous speed, so it reads the
+   * gesture — a sharp sweep up and slightly downstream — instead of firing on
+   * one jittery frame.
+   */
+  Game.prototype._updateLift = function (dt) {
+    var lag = 1 - Math.exp(-dt / LIFT_LAG);
+    this.tipLag.x += (this.tip.x - this.tipLag.x) * lag;
+    this.tipLag.y += (this.tip.y - this.tipLag.y) * lag;
+    this.liftCooldown = Math.max(0, this.liftCooldown - dt);
+
+    // Up counts fully; a downstream sweep counts for half, the way a sideways
+    // set still drives the hook home.
+    this.lift = (this.tip.y - this.tipLag.y)
+              + Math.max(0, this.tip.x - this.tipLag.x) * 0.5;
+
+    if (this.liftStrike && this.phase === 'drifting' &&
+        this.liftCooldown <= 0 && this.lift > this.liftThreshold) {
+      this.liftCooldown = 0.9;
+      this.strike();
+    }
+  };
+
+  Game.prototype._resetLift = function (delay) {
+    this.tipLag.x = this.tip.x;
+    this.tipLag.y = this.tip.y;
+    this.lift = 0;
+    this.liftCooldown = delay || 0;
   };
 
   Game.prototype._updateFish = function (dt) {
@@ -2121,7 +2181,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
    'drag-val', 'drag-fill', 'fight-section', 'tension-val', 'tension-fill', 'tension-band',
    'stamina-val', 'stamina-fill', 'preset', 'bead', 'bead-val', 'leader', 'leader-val',
    'tippet', 'dropper', 'lies', 'reset', 's-drifts', 's-takes', 's-hooked', 's-landed',
-   's-best', 's-zone', 's-dead', 's-last', 'touch-controls', 'btn-action'
+   's-best', 's-zone', 's-dead', 's-last', 'touch-controls', 'btn-action',
+   'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
@@ -2246,6 +2307,19 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
   el.lies.addEventListener('change', function () { game.showLies = el.lies.checked; });
 
+  var SENS_LABEL = { 1: 'very firm', 2: 'firm', 3: 'normal', 4: 'light', 5: 'hair trigger' };
+
+  function applyLiftSettings() {
+    var sens = parseInt(el['lift-sens'].value, 10);
+    game.liftStrike = el.lift.checked;
+    game.liftThreshold = 0.38 - (sens - 1) * 0.06;
+    el['lift-val'].textContent = SENS_LABEL[sens];
+    el['lift-field'].style.opacity = el.lift.checked ? '1' : '0.4';
+  }
+
+  el.lift.addEventListener('change', applyLiftSettings);
+  el['lift-sens'].addEventListener('input', applyLiftSettings);
+
   el.reset.addEventListener('click', function () {
     var keep = game.rig.config;
     game = new EN.Game();
@@ -2254,19 +2328,20 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     game.showLies = el.lies.checked;
     renderer.game = game;
     EN.game = game;
+    applyLiftSettings();
   });
 
   // ---- HUD -----------------------------------------------------------------
 
   var PHASE_TEXT = {
     ready: 'Ready — <strong>click</strong> or <kbd>Space</kbd> to tuck a cast upstream',
-    drifting: 'Drifting — lead the sighter, strike at anything odd',
+    drifting: 'Drifting — lead the sighter, <strong>sweep the rod up</strong> to set',
     fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it'
   };
 
   var PHASE_TEXT_TOUCH = {
     ready: 'Drag to hold the rod tip — tap <strong>CAST</strong>',
-    drifting: 'Drifting — lead the sighter, tap <strong>STRIKE</strong> at anything odd',
+    drifting: 'Drifting — lead the sighter, <strong>flick up</strong> to set',
     fighting: 'Fish on — <strong>hold GATHER</strong> to take line, let go to give it'
   };
 
@@ -2327,6 +2402,14 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       setFill(el['stamina-fill'], hud.stamina * 100, '#ffb03a');
     }
 
+    // Show how close the last rod movement came to registering as a set.
+    var liftPct = clamp(game.lift / Math.max(0.05, game.liftThreshold), 0, 1.4) * 71;
+    el['lift-read'].textContent = game.liftStrike
+      ? (game.liftCooldown > 0 ? 'set' : Math.round(liftPct / 0.71) + '%')
+      : 'off';
+    setFill(el['lift-fill'], liftPct,
+      game.liftCooldown > 0 ? '#ffd75e' : (liftPct > 71 ? '#ffb03a' : '#5b7f8c'));
+
     el['s-drifts'].textContent = s.drifts;
     el['s-takes'].textContent = s.takes;
     el['s-hooked'].textContent = s.hooked;
@@ -2368,6 +2451,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     requestAnimationFrame(frame);
   }
 
+  applyLiftSettings();
   renderer.resize();
   updateHud();
   requestAnimationFrame(frame);
