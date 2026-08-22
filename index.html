@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Euro Nymphing Simulator</title>
+<meta name="description" content="A browser simulator for tight-line (Euro) nymphing: leader physics, sighter take detection, and playing fish.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8E%A3%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="scene"></canvas>
+    <div id="overlay">
+      <div id="phase">Move the mouse to hold the rod tip — <strong>click</strong> to cast</div>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <aside id="panel">
+    <h1>Euro Nymphing Simulator</h1>
+    <p class="sub">Tight-line contact, drift depth, and the take — read the sighter.</p>
+
+    <section id="drift-section">
+      <h2>Drift</h2>
+
+      <div class="meter">
+        <div class="meter-head"><span>Contact</span><span id="contact-val">—</span></div>
+        <div class="track">
+          <div class="band" id="contact-band"></div>
+          <div class="fill" id="contact-fill"></div>
+        </div>
+      </div>
+
+      <div class="meter">
+        <div class="meter-head"><span>Off the bed</span><span id="depth-val">—</span></div>
+        <div class="track"><div class="fill" id="depth-fill"></div></div>
+      </div>
+
+      <div class="meter">
+        <div class="meter-head"><span>Drag</span><span id="drag-val">—</span></div>
+        <div class="track"><div class="fill" id="drag-fill"></div></div>
+      </div>
+    </section>
+
+    <section id="fight-section" hidden>
+      <h2>Fish on</h2>
+      <div class="meter">
+        <div class="meter-head"><span>Tippet load</span><span id="tension-val">—</span></div>
+        <div class="track">
+          <div class="band" id="tension-band"></div>
+          <div class="fill" id="tension-fill"></div>
+        </div>
+      </div>
+      <div class="meter">
+        <div class="meter-head"><span>Fish left in it</span><span id="stamina-val">—</span></div>
+        <div class="track"><div class="fill" id="stamina-fill"></div></div>
+      </div>
+      <p class="sub" style="margin:0">Hold the mouse button to gather line. Give when it runs.</p>
+    </section>
+
+    <section>
+      <h2>Water</h2>
+      <label class="field">Beat
+        <select id="preset">
+          <option value="riffle">Riffle run</option>
+          <option value="pocket">Deep pocket</option>
+          <option value="tailout">Glassy tailout</option>
+        </select>
+      </label>
+    </section>
+
+    <section>
+      <h2>Rig</h2>
+      <label class="field">Point fly bead — <span id="bead-val">3.5 mm</span>
+        <input type="range" id="bead" min="2.5" max="4.5" step="1" value="3.5">
+      </label>
+      <label class="field">Working leader, tip to point fly — <span id="leader-val">3.2 m</span>
+        <input type="range" id="leader" min="2.4" max="4.6" step="0.2" value="3.2">
+      </label>
+      <label class="field">Tippet
+        <select id="tippet">
+          <option value="0.10">0.10 mm (7X)</option>
+          <option value="0.12">0.12 mm (6X)</option>
+          <option value="0.14" selected>0.14 mm (5X)</option>
+          <option value="0.16">0.16 mm (4X)</option>
+          <option value="0.18">0.18 mm (3X)</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="dropper" checked> Fish a dropper on a tag</label>
+      <label class="check"><input type="checkbox" id="lies"> Learning mode (show lies and fish)</label>
+    </section>
+
+    <section>
+      <h2>Session</h2>
+      <dl class="rows">
+        <dt>Drifts</dt><dd id="s-drifts">0</dd>
+        <dt>Takes</dt><dd id="s-takes">0</dd>
+        <dt>Hooked</dt><dd id="s-hooked">0</dd>
+        <dt>Landed</dt><dd id="s-landed">0</dd>
+        <dt>Best fish</dt><dd id="s-best">—</dd>
+        <dt>Avg. time in the zone</dt><dd id="s-zone">—</dd>
+        <dt>Avg. dead drift</dt><dd id="s-dead">—</dd>
+        <dt>Last drift score</dt><dd id="s-last">—</dd>
+      </dl>
+    </section>
+
+    <section>
+      <button id="reset">Reset session</button>
+    </section>
+
+    <details>
+      <summary>How to fish it</summary>
+      <p><b>Cast</b> with <kbd>click</kbd> or <kbd>Space</kbd>. The flies tuck in upstream and start sinking.</p>
+      <p><b>Lead the sighter</b> downstream at the speed of the water. Contact wants to sit in the marked band: tight enough that a take moves the sighter, loose enough that you are not towing the flies.</p>
+      <p><b>Get down.</b> Fish eat within about 30 cm of the bed. Deeper or faster water needs a heavier bead, a longer leader, or a cast further upstream.</p>
+      <p><b>Strike</b> with <kbd>click</kbd> or <kbd>Space</kbd> at anything the sighter does that the current did not do — a stall, a tick, a lift. You have a few tenths of a second.</p>
+      <p><b>Play it</b> by holding the mouse button to gather line and releasing to give it back. Watch the tippet load.</p>
+      <p>Keys: <kbd>Space</kbd> cast / strike · <kbd>R</kbd> recast · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> beats</p>
+    </details>
+  </aside>
+</div>
+
+<script src="src/river.js"></script>
+<script src="src/rig.js"></script>
+<script src="src/fish.js"></script>
+<script src="src/game.js"></script>
+<script src="src/render.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>
