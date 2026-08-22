@@ -65,12 +65,40 @@ html, body {
 }
 #phase strong { color: var(--text); font-weight: 600; }
 
+#bottom-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 #log {
   display: flex;
   flex-direction: column;
   gap: 6px;
   align-items: flex-start;
   max-width: 62%;
+}
+
+#touch-controls { pointer-events: auto; flex: 0 0 auto; }
+
+#btn-action {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: rgba(255, 176, 58, 0.16);
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  user-select: none;
+}
+#btn-action:active {
+  background: rgba(255, 176, 58, 0.34);
+  transform: scale(0.96);
 }
 .msg {
   background: rgba(10, 18, 22, 0.82);
@@ -229,7 +257,11 @@ details b { color: var(--text); font-weight: 600; }
 @media (max-width: 860px) {
   #app { flex-direction: column; }
   #panel { flex: 0 0 auto; max-height: 46%; border-left: none; border-top: 1px solid var(--line); }
-  #log { max-width: 92%; }
+  #log { max-width: 60%; }
+  /* Keep the log from swallowing a small screen. */
+  #log .msg:nth-child(n + 3) { display: none; }
+  #overlay { padding: 10px; }
+  #phase { font-size: 12px; padding: 5px 12px; text-align: center; }
 }
 
 section.dim { opacity: 0.34; transition: opacity 180ms ease; }

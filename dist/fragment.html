@@ -1,0 +1,2376 @@
+<title>Euro Nymphing Simulator</title>
+<style>
+:root {
+  --bg: #0d1418;
+  --panel: #141e23;
+  --panel-2: #1b272d;
+  --line: #27373f;
+  --text: #dfe9ec;
+  --muted: #8ea3ab;
+  --accent: #ffb03a;
+  --good: #6fd18a;
+  --bad: #ef6b5e;
+  --alert: #ffd75e;
+  --sighter: #ff7a1a;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  overflow: hidden;
+}
+
+#app {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+#stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+#phase {
+  align-self: center;
+  background: rgba(10, 18, 22, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+#phase strong { color: var(--text); font-weight: 600; }
+
+#bottom-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  max-width: 62%;
+}
+
+#touch-controls { pointer-events: auto; flex: 0 0 auto; }
+
+#btn-action {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: rgba(255, 176, 58, 0.16);
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  user-select: none;
+}
+#btn-action:active {
+  background: rgba(255, 176, 58, 0.34);
+  transform: scale(0.96);
+}
+.msg {
+  background: rgba(10, 18, 22, 0.82);
+  border-left: 3px solid var(--muted);
+  border-radius: 4px;
+  padding: 6px 11px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.msg.good { border-color: var(--good); }
+.msg.bad { border-color: var(--bad); }
+.msg.alert { border-color: var(--alert); color: var(--alert); font-weight: 600; }
+.msg.coach { border-color: var(--accent); color: #ffd9a1; }
+
+#panel {
+  flex: 0 0 306px;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+  padding: 16px;
+}
+
+h1 {
+  margin: 0 0 2px;
+  font-size: 17px;
+  letter-spacing: 0.01em;
+}
+.sub {
+  margin: 0 0 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+section { margin-bottom: 18px; }
+h2 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.meter { margin-bottom: 10px; }
+.meter-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+.meter-head span:first-child { white-space: nowrap; }
+.meter-head span:last-child {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+.track {
+  position: relative;
+  height: 8px;
+  background: var(--panel-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  border-radius: 999px;
+  background: var(--good);
+  transition: width 60ms linear;
+}
+.band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.14);
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+  border-right: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.rows { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: 12.5px; }
+.rows dt { color: var(--muted); }
+.rows dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+
+label.field {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+label.field select,
+label.field input[type="range"] {
+  width: 100%;
+  margin-top: 4px;
+}
+select {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+input[type="range"] { accent-color: var(--accent); }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+button {
+  width: 100%;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+
+kbd {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+
+details {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+details summary {
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+details p { margin: 0 0 8px; }
+details b { color: var(--text); font-weight: 600; }
+
+@media (max-width: 860px) {
+  #app { flex-direction: column; }
+  #panel { flex: 0 0 auto; max-height: 46%; border-left: none; border-top: 1px solid var(--line); }
+  #log { max-width: 60%; }
+  /* Keep the log from swallowing a small screen. */
+  #log .msg:nth-child(n + 3) { display: none; }
+  #overlay { padding: 10px; }
+  #phase { font-size: 12px; padding: 5px 12px; text-align: center; }
+}
+
+section.dim { opacity: 0.34; transition: opacity 180ms ease; }
+
+</style>
+<div id="app">
+  <div id="stage">
+    <canvas id="scene"></canvas>
+    <div id="overlay">
+      <div id="phase">Move the mouse to hold the rod tip — <strong>click</strong> to cast</div>
+      <div id="bottom-row">
+        <div id="log"></div>
+        <div id="touch-controls" hidden>
+          <button id="btn-action" type="button">CAST</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside id="panel">
+    <h1>Euro Nymphing Simulator</h1>
+    <p class="sub">Tight-line contact, drift depth, and the take — read the sighter.</p>
+
+    <section id="drift-section">
+      <h2>Drift</h2>
+
+      <div class="meter">
+        <div class="meter-head"><span>Contact</span><span id="contact-val">—</span></div>
+        <div class="track">
+          <div class="band" id="contact-band"></div>
+          <div class="fill" id="contact-fill"></div>
+        </div>
+      </div>
+
+      <div class="meter">
+        <div class="meter-head"><span>Off the bed</span><span id="depth-val">—</span></div>
+        <div class="track"><div class="fill" id="depth-fill"></div></div>
+      </div>
+
+      <div class="meter">
+        <div class="meter-head"><span>Drag</span><span id="drag-val">—</span></div>
+        <div class="track"><div class="fill" id="drag-fill"></div></div>
+      </div>
+    </section>
+
+    <section id="fight-section" hidden>
+      <h2>Fish on</h2>
+      <div class="meter">
+        <div class="meter-head"><span>Tippet load</span><span id="tension-val">—</span></div>
+        <div class="track">
+          <div class="band" id="tension-band"></div>
+          <div class="fill" id="tension-fill"></div>
+        </div>
+      </div>
+      <div class="meter">
+        <div class="meter-head"><span>Fish left in it</span><span id="stamina-val">—</span></div>
+        <div class="track"><div class="fill" id="stamina-fill"></div></div>
+      </div>
+      <p class="sub" style="margin:0">Hold the mouse button to gather line. Give when it runs.</p>
+    </section>
+
+    <section>
+      <h2>Water</h2>
+      <label class="field">Beat
+        <select id="preset">
+          <option value="riffle">Riffle run</option>
+          <option value="pocket">Deep pocket</option>
+          <option value="tailout">Glassy tailout</option>
+        </select>
+      </label>
+    </section>
+
+    <section>
+      <h2>Rig</h2>
+      <label class="field">Point fly bead — <span id="bead-val">3.5 mm</span>
+        <input type="range" id="bead" min="2.5" max="4.5" step="1" value="3.5">
+      </label>
+      <label class="field">Working leader, tip to point fly — <span id="leader-val">3.2 m</span>
+        <input type="range" id="leader" min="2.4" max="4.6" step="0.2" value="3.2">
+      </label>
+      <label class="field">Tippet
+        <select id="tippet">
+          <option value="0.10">0.10 mm (7X)</option>
+          <option value="0.12">0.12 mm (6X)</option>
+          <option value="0.14" selected>0.14 mm (5X)</option>
+          <option value="0.16">0.16 mm (4X)</option>
+          <option value="0.18">0.18 mm (3X)</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="dropper" checked> Fish a dropper on a tag</label>
+      <label class="check"><input type="checkbox" id="lies"> Learning mode (show lies and fish)</label>
+    </section>
+
+    <section>
+      <h2>Session</h2>
+      <dl class="rows">
+        <dt>Drifts</dt><dd id="s-drifts">0</dd>
+        <dt>Takes</dt><dd id="s-takes">0</dd>
+        <dt>Hooked</dt><dd id="s-hooked">0</dd>
+        <dt>Landed</dt><dd id="s-landed">0</dd>
+        <dt>Best fish</dt><dd id="s-best">—</dd>
+        <dt>Avg. time in the zone</dt><dd id="s-zone">—</dd>
+        <dt>Avg. dead drift</dt><dd id="s-dead">—</dd>
+        <dt>Last drift score</dt><dd id="s-last">—</dd>
+      </dl>
+    </section>
+
+    <section>
+      <button id="reset">Reset session</button>
+    </section>
+
+    <details>
+      <summary>How to fish it</summary>
+      <p><b>Cast</b> with <kbd>click</kbd> or <kbd>Space</kbd>. The flies tuck in upstream and start sinking.</p>
+      <p><b>Lead the sighter</b> downstream at the speed of the water. Contact wants to sit in the marked band: tight enough that a take moves the sighter, loose enough that you are not towing the flies.</p>
+      <p><b>Get down.</b> Fish eat within about 30 cm of the bed. Deeper or faster water needs a heavier bead, a longer leader, or a cast further upstream.</p>
+      <p><b>Strike</b> with <kbd>click</kbd> or <kbd>Space</kbd> at anything the sighter does that the current did not do — a stall, a tick, a lift. You have a few tenths of a second.</p>
+      <p><b>Play it</b> by holding the mouse button to gather line and releasing to give it back. Watch the tippet load.</p>
+      <p><b>On a phone or tablet:</b> drag anywhere on the water to hold the rod tip, and use the round button to cast, strike, and gather line.</p>
+      <p>Keys: <kbd>Space</kbd> cast / strike · <kbd>R</kbd> recast · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> beats</p>
+    </details>
+  </aside>
+</div>
+
+<script>
+/*
+ * river.js — river geometry and the velocity field the whole sim rides on.
+ *
+ * World units are metres. +x is downstream (left to right on screen), +y is up,
+ * and y = 0 is the water surface, so the bed lives at negative y.
+ */
+(function (EN) {
+  'use strict';
+
+  var WORLD = {
+    xMin: 0.4,
+    xMax: 7.6,
+    yTop: 2.35,
+    yBed: -1.45
+  };
+
+  // Linear interpolation through a list of {x, y} bed control points.
+  function sampleProfile(points, x) {
+    if (x <= points[0].x) return points[0].y;
+    var last = points[points.length - 1];
+    if (x >= last.x) return last.y;
+    for (var i = 1; i < points.length; i++) {
+      if (x <= points[i].x) {
+        var a = points[i - 1], b = points[i];
+        var t = (x - a.x) / (b.x - a.x);
+        // Smoothstep keeps the bed rounded instead of faceted.
+        t = t * t * (3 - 2 * t);
+        return a.y + (b.y - a.y) * t;
+      }
+    }
+    return last.y;
+  }
+
+  var PRESETS = {
+    riffle: {
+      key: 'riffle',
+      name: 'Riffle run',
+      blurb: 'Shallow broken water, quick current. Short leash, high rod, keep the bugs ticking.',
+      // Mean surface speed at the reference depth, m/s.
+      flow: 0.92,
+      refDepth: 0.5,
+      turbulence: 0.10,
+      spook: 0.25,
+      bed: [
+        { x: 0.0, y: -0.42 }, { x: 1.3, y: -0.55 }, { x: 2.4, y: -0.48 },
+        { x: 3.3, y: -0.72 }, { x: 4.2, y: -0.52 }, { x: 5.1, y: -0.64 },
+        { x: 6.1, y: -0.45 }, { x: 8.0, y: -0.40 }
+      ],
+      rocks: [
+        { x: 1.9, r: 0.20 }, { x: 3.0, r: 0.24 }, { x: 4.7, r: 0.17 }, { x: 5.7, r: 0.20 }
+      ],
+      lies: [
+        { x: 3.35, name: 'pocket behind the boulder', quality: 1.0 },
+        { x: 5.10, name: 'slot on the seam', quality: 0.85 },
+        { x: 2.10, name: 'head of the riffle', quality: 0.7 }
+      ]
+    },
+
+    pocket: {
+      key: 'pocket',
+      name: 'Deep pocket',
+      blurb: 'A gouged-out slot with slow water on the bottom. Heavy bugs, patient drift.',
+      flow: 0.78,
+      refDepth: 0.8,
+      turbulence: 0.14,
+      spook: 0.18,
+      bed: [
+        { x: 0.0, y: -0.45 }, { x: 1.45, y: -0.58 }, { x: 2.40, y: -1.05 },
+        { x: 3.50, y: -1.25 }, { x: 4.65, y: -1.18 }, { x: 5.50, y: -0.85 },
+        { x: 6.60, y: -0.52 }, { x: 8.00, y: -0.46 }
+      ],
+      rocks: [
+        { x: 2.50, r: 0.28 }, { x: 4.50, r: 0.32 }, { x: 5.95, r: 0.20 }
+      ],
+      lies: [
+        { x: 3.70, name: 'the guts of the pocket', quality: 1.0 },
+        { x: 2.65, name: 'the drop-off lip', quality: 0.9 },
+        { x: 5.30, name: 'tail of the pocket', quality: 0.75 }
+      ]
+    },
+
+    tailout: {
+      key: 'tailout',
+      name: 'Glassy tailout',
+      blurb: 'Slow, smooth and shallow. Fish see everything — drag shows up instantly.',
+      flow: 0.55,
+      refDepth: 0.6,
+      turbulence: 0.05,
+      spook: 0.55,
+      bed: [
+        { x: 0.0, y: -1.05 }, { x: 1.60, y: -0.95 }, { x: 2.90, y: -0.78 },
+        { x: 4.00, y: -0.66 }, { x: 5.10, y: -0.52 }, { x: 6.40, y: -0.38 },
+        { x: 8.00, y: -0.30 }
+      ],
+      rocks: [
+        { x: 1.80, r: 0.18 }, { x: 3.85, r: 0.15 }, { x: 5.50, r: 0.13 }
+      ],
+      lies: [
+        { x: 3.05, name: 'the last deep crease', quality: 1.0 },
+        { x: 4.50, name: 'mid tailout', quality: 0.8 },
+        { x: 1.85, name: 'inside edge', quality: 0.7 }
+      ]
+    }
+  };
+
+  function River(presetKey) {
+    this.setPreset(presetKey || 'riffle');
+    this.time = 0;
+  }
+
+  River.prototype.setPreset = function (key) {
+    this.preset = PRESETS[key] || PRESETS.riffle;
+    this.flowScale = 1;
+    var deepest = 0;
+    for (var i = 0; i < this.preset.bed.length; i++) {
+      deepest = Math.max(deepest, -this.preset.bed[i].y);
+    }
+    this.maxDepth = deepest;
+  };
+
+  /** Bed elevation (negative) at a downstream position. */
+  River.prototype.bedY = function (x) {
+    return sampleProfile(this.preset.bed, x);
+  };
+
+  /** Water depth at a downstream position, metres. */
+  River.prototype.depth = function (x) {
+    return -this.bedY(x);
+  };
+
+  /**
+   * Surface speed. Continuity says the river has to move faster where it is
+   * shallower, which is exactly why a riffle rips and a pocket loafs.
+   */
+  River.prototype.surfaceSpeed = function (x) {
+    var p = this.preset;
+    var h = Math.max(0.12, this.depth(x));
+    return p.flow * this.flowScale * Math.pow(p.refDepth / h, 0.45);
+  };
+
+  /**
+   * Downstream water speed at a point. A 1/6-power boundary layer: the current
+   * dies to nothing at the bed, which is the whole reason we want the nymph
+   * down there — slow water, natural drift, and fish that do not have to work.
+   */
+  River.prototype.speedAt = function (x, y) {
+    var bed = this.bedY(x);
+    if (y <= bed) return 0;
+    var h = Math.max(0.12, -bed);
+    var z = Math.min(h, y - bed);
+    var shear = Math.pow(Math.max(0, z) / h, 1 / 6);
+    var u = this.surfaceSpeed(x) * shear;
+    // Above the surface there is no push at all.
+    return y > 0 ? 0 : u;
+  };
+
+  /** Small unsteady component so drifts never look like they are on rails. */
+  River.prototype.turbulenceAt = function (x, y, t) {
+    var p = this.preset;
+    if (y > 0) return { x: 0, y: 0 };
+    var bed = this.bedY(x);
+    var h = Math.max(0.12, -bed);
+    var z = Math.max(0, y - bed);
+    // Strongest just off the bed where the boulders shed eddies.
+    var envelope = Math.exp(-Math.pow((z / h - 0.25) * 2.4, 2));
+    var s = p.turbulence * envelope;
+    var a = Math.sin(x * 3.1 + t * 2.3) * Math.cos(y * 5.0 - t * 1.7);
+    var b = Math.cos(x * 4.7 - t * 3.1) * Math.sin(y * 3.3 + t * 2.9);
+    return { x: a * s, y: b * s * 0.6 };
+  };
+
+  /** Height of the nymph above the bed — the number the HUD lives on. */
+  River.prototype.heightAboveBed = function (x, y) {
+    return y - this.bedY(x);
+  };
+
+  River.prototype.update = function (dt) {
+    this.time += dt;
+  };
+
+  EN.WORLD = WORLD;
+  EN.PRESETS = PRESETS;
+  EN.River = River;
+})(window.EN = window.EN || {});
+
+/*
+ * rig.js — the leader itself, simulated as a position-based-dynamics rope.
+ *
+ * Everything the game is about falls out of this one model:
+ *   - thin mono is drag-dominated, so submerged leader gets shoved downstream
+ *     and forms a belly;
+ *   - a tungsten bead is mass-dominated, so it keeps sinking through that belly;
+ *   - the segment constraints only ever *pull*, never push, so slack is real
+ *     slack and a take telegraphs up the leader only when you are in contact.
+ */
+(function (EN) {
+  'use strict';
+
+  var G = 9.81;
+
+  // Density ratios -> the fraction of dry weight that still pulls down in water.
+  var BUOY = {
+    mono: 1 - 1000 / 1140,   // nylon is very nearly neutral, ~0.12
+    fly: 0.88                // tungsten bead + hook
+  };
+
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  /** Sink rate in still water for a given tungsten bead, m/s. */
+  function beadSinkRate(mm) {
+    if (mm <= 2.6) return 0.24;
+    if (mm <= 3.6) return 0.38;
+    if (mm <= 4.6) return 0.52;
+    return 0.62;
+  }
+
+  function Node(x, y, opts) {
+    this.x = x; this.y = y;
+    this.px = x; this.py = y;
+    this.vx = 0; this.vy = 0;
+    this.invMass = opts.invMass;
+    this.buoy = opts.buoy;
+    this.waterRate = opts.waterRate; // velocity relaxation toward the current, 1/s
+    this.airRate = opts.airRate;
+    this.section = opts.section;
+    this.pinned = !!opts.pinned;
+  }
+
+  var DEFAULTS = {
+    leaderLength: 3.2,   // working length: rod tip to point fly, metres
+    nodes: 28,
+    sighterFrom: 0.50,
+    sighterTo: 0.67,
+    pointBead: 3.5,      // mm tungsten
+    dropperBead: 2.5,
+    dropperAt: 0.76,     // fraction along the leader
+    dropperTag: 0.15,    // tag length, metres
+    tippet: 0.14,        // mm
+    useDropper: true
+  };
+
+  function Rig(config) {
+    this.config = {};
+    this.configure(config);
+  }
+
+  Rig.prototype.configure = function (config) {
+    var c = this.config;
+    for (var k in DEFAULTS) if (!(k in c)) c[k] = DEFAULTS[k];
+    if (config) for (var j in config) c[j] = config[j];
+
+    var n = c.nodes;
+    this.seg = c.leaderLength / (n - 1);
+    this.nodes = [];
+
+    // Mono mass per node: ~0.55 g per metre of leader.
+    var monoMass = 0.00055 * this.seg;
+    var pointMass = 0.00008 * Math.pow(c.pointBead, 3) / 27; // ~0.3 g at 3.5 mm
+    var dropperMass = 0.00008 * Math.pow(c.dropperBead, 3) / 27;
+
+    for (var i = 0; i < n; i++) {
+      var f = i / (n - 1);
+      var section = 'butt';
+      var waterRate = 95, airRate = 1.6;
+      if (f >= c.sighterFrom && f <= c.sighterTo) {
+        section = 'sighter';
+        waterRate = 115; airRate = 2.1;
+      } else if (f > c.sighterTo) {
+        section = 'tippet';
+        // Thinner tippet cuts the current better -> less belly below the sighter.
+        waterRate = 55 * (0.14 / c.tippet);
+        airRate = 1.2;
+      }
+      var isPoint = (i === n - 1);
+      this.nodes.push(new Node(0, 0, {
+        invMass: i === 0 ? 0 : 1 / (isPoint ? pointMass : monoMass),
+        buoy: isPoint ? BUOY.fly : BUOY.mono,
+        waterRate: isPoint ? G * BUOY.fly / beadSinkRate(c.pointBead) : waterRate,
+        airRate: isPoint ? 0.9 : airRate,
+        section: isPoint ? 'point' : section,
+        pinned: i === 0
+      }));
+    }
+
+    this.pointIndex = n - 1;
+    this.sighterFrom = Math.round(c.sighterFrom * (n - 1));
+    this.sighterTo = Math.round(c.sighterTo * (n - 1));
+
+    // The dropper hangs off a tag part way down and rides higher in the column.
+    this.dropperHost = Math.round(c.dropperAt * (n - 1));
+    this.dropperIndex = -1;
+    if (c.useDropper) {
+      this.dropperIndex = this.nodes.length;
+      this.nodes.push(new Node(0, 0, {
+        invMass: 1 / dropperMass,
+        buoy: BUOY.fly,
+        waterRate: G * BUOY.fly / beadSinkRate(c.dropperBead),
+        airRate: 0.9,
+        section: 'dropper',
+        pinned: false
+      }));
+    }
+
+    this.contact = 0;
+    this.tension = 0;
+    this.anchor = null;      // set while a fish has the fly
+    this.snagged = false;
+    this.lineOut = c.leaderLength; // shortened by hand while playing a fish
+  };
+
+  Rig.prototype.point = function () { return this.nodes[this.pointIndex]; };
+  Rig.prototype.dropper = function () {
+    return this.dropperIndex >= 0 ? this.nodes[this.dropperIndex] : null;
+  };
+
+  /** Lay the whole rig out in a straight line — used by the cast. */
+  Rig.prototype.layout = function (tipX, tipY, pointX, pointY) {
+    var n = this.config.nodes;
+    for (var i = 0; i < n; i++) {
+      var f = i / (n - 1);
+      var nd = this.nodes[i];
+      nd.x = nd.px = tipX + (pointX - tipX) * f;
+      nd.y = nd.py = tipY + (pointY - tipY) * f;
+      nd.vx = nd.vy = 0;
+    }
+    var d = this.dropper();
+    if (d) {
+      var host = this.nodes[this.dropperHost];
+      d.x = d.px = host.x;
+      d.y = d.py = host.y - this.config.dropperTag;
+      d.vx = d.vy = 0;
+    }
+    this.anchor = null;
+    this.snagged = false;
+    this.lineOut = this.config.leaderLength;
+  };
+
+  Rig.prototype.setPointVelocity = function (vx, vy) {
+    var p = this.point();
+    p.vx = vx; p.vy = vy;
+  };
+
+  /**
+   * One physics substep.
+   *   tip    — {x, y} rod tip position this step
+   *   river  — EN.River
+   *   dt     — seconds
+   */
+  Rig.prototype.step = function (dt, tip, river) {
+    var nodes = this.nodes;
+    var i, nd;
+
+    // ---- predict -----------------------------------------------------------
+    for (i = 0; i < nodes.length; i++) {
+      nd = nodes[i];
+      nd.px = nd.x;
+      nd.py = nd.y;
+      if (nd.pinned) continue;
+
+      var submerged = nd.y < 0;
+      if (submerged) {
+        var u = river.speedAt(nd.x, nd.y);
+        var turb = river.turbulenceAt(nd.x, nd.y, river.time);
+        // Exponential relaxation toward the water: stable at any drag strength,
+        // and it is the honest model for something this thin in moving water.
+        var k = 1 - Math.exp(-nd.waterRate * dt);
+        nd.vx += ((u + turb.x) - nd.vx) * k;
+        nd.vy += (turb.y - nd.vy) * k;
+        nd.vy -= G * nd.buoy * dt;
+      } else {
+        var ka = 1 - Math.exp(-nd.airRate * dt);
+        nd.vx += (0 - nd.vx) * ka;
+        nd.vy += (0 - nd.vy) * ka;
+        nd.vy -= G * dt;
+      }
+
+      nd.x += nd.vx * dt;
+      nd.y += nd.vy * dt;
+    }
+
+    // ---- constraints -------------------------------------------------------
+    nodes[0].x = tip.x;
+    nodes[0].y = tip.y;
+
+    var iterations = 10;
+    for (var it = 0; it < iterations; it++) {
+      this._solveSegments();
+      this._solveAttachments();
+      this._solveWorld(river);
+    }
+
+    // ---- derive velocities from the corrected positions ---------------------
+    for (i = 0; i < nodes.length; i++) {
+      nd = nodes[i];
+      if (nd.pinned) { nd.vx = nd.vy = 0; continue; }
+      nd.vx = (nd.x - nd.px) / dt;
+      nd.vy = (nd.y - nd.py) / dt;
+    }
+
+    this._measure(tip);
+  };
+
+  Rig.prototype._solveSegments = function () {
+    var n = this.config.nodes;
+    var rest = this.seg;
+    // Shorten the working length when the angler gathers line during a fight.
+    var scale = this.lineOut / this.config.leaderLength;
+    rest *= scale;
+
+    for (var i = 0; i < n - 1; i++) {
+      var a = this.nodes[i], b = this.nodes[i + 1];
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var d = Math.hypot(dx, dy);
+      if (d < 1e-9) continue;
+      // A rope only pulls. Slack stays slack — that is the whole point.
+      if (d <= rest) continue;
+      var w = a.invMass + b.invMass;
+      if (w === 0) continue;
+      var corr = (d - rest) / d;
+      var cx = dx * corr, cy = dy * corr;
+      a.x += cx * (a.invMass / w);
+      a.y += cy * (a.invMass / w);
+      b.x -= cx * (b.invMass / w);
+      b.y -= cy * (b.invMass / w);
+    }
+  };
+
+  Rig.prototype._solveAttachments = function () {
+    var d = this.dropper();
+    if (d) {
+      var host = this.nodes[this.dropperHost];
+      var dx = d.x - host.x, dy = d.y - host.y;
+      var dist = Math.hypot(dx, dy);
+      var tag = this.config.dropperTag;
+      if (dist > tag && dist > 1e-9) {
+        var w = host.invMass + d.invMass;
+        var corr = (dist - tag) / dist;
+        host.x += dx * corr * (host.invMass / w);
+        host.y += dy * corr * (host.invMass / w);
+        d.x -= dx * corr * (d.invMass / w);
+        d.y -= dy * corr * (d.invMass / w);
+      }
+    }
+
+    // A fish on, or a rock hold, pins whichever fly is caught.
+    if (this.anchor) {
+      var p = this.anchor.node || this.point();
+      p.x = this.anchor.x;
+      p.y = this.anchor.y;
+    }
+  };
+
+  Rig.prototype._solveWorld = function (river) {
+    var rocks = river.preset.rocks || [];
+    for (var i = 1; i < this.nodes.length; i++) {
+      var nd = this.nodes[i];
+      if (nd.invMass === 0) continue;
+
+      for (var r = 0; r < rocks.length; r++) {
+        var rock = rocks[r];
+        var cx = rock.x, cy = river.bedY(rock.x) + rock.r * 0.55;
+        var dx = nd.x - cx, dy = nd.y - cy;
+        var d = Math.hypot(dx, dy);
+        if (d < rock.r && d > 1e-9) {
+          nd.x = cx + dx / d * rock.r;
+          nd.y = cy + dy / d * rock.r;
+        }
+      }
+
+      var bed = river.bedY(nd.x);
+      if (nd.y < bed) {
+        nd.y = bed;
+        // Bed friction: this is the "tick, tick" you feel through the sighter.
+        var slip = (nd.section === 'point' || nd.section === 'dropper') ? 0.55 : 0.85;
+        nd.x = nd.px + (nd.x - nd.px) * slip;
+      }
+    }
+  };
+
+  /** Leader in play out to a given fly — shorter if it is the dropper. */
+  Rig.prototype.lengthTo = function (node) {
+    if (node && node.section === 'dropper') {
+      return this.lineOut * this.config.dropperAt + this.config.dropperTag;
+    }
+    return this.lineOut;
+  };
+
+  Rig.prototype._measure = function (tip) {
+    var p = (this.anchor && this.anchor.node) || this.point();
+    var span = this.lengthTo(p);
+    var chord = Math.hypot(p.x - tip.x, p.y - tip.y);
+    this.contact = clamp(chord / span, 0, 1);
+
+    // How hard the leader is loaded, normalised so 1.0 is roughly a straight,
+    // fully weighted rig. Used for the sighter read and for the fight.
+    var stretch = chord - span;
+    this.tension = Math.max(0, stretch) * 40 + Math.max(0, this.contact - 0.9) * 2.2;
+  };
+
+  /** RMS speed of the sighter relative to the water — how much it is "talking". */
+  Rig.prototype.sighterSignal = function (river) {
+    var sum = 0, count = 0;
+    for (var i = this.sighterFrom; i <= this.sighterTo; i++) {
+      var nd = this.nodes[i];
+      var u = nd.y < 0 ? river.speedAt(nd.x, nd.y) : 0;
+      sum += Math.hypot(nd.vx - u, nd.vy);
+      count++;
+    }
+    return count ? sum / count : 0;
+  };
+
+  EN.Rig = Rig;
+  EN.beadSinkRate = beadSinkRate;
+  EN.clamp = clamp;
+})(window.EN = window.EN || {});
+
+/*
+ * fish.js — trout that hold in lies, judge your drift, eat, and then fight.
+ *
+ * A fish only commits when the fly is (a) down in its window and (b) moving at
+ * the speed of the water around it. Once it eats, whether you ever find out
+ * depends on how much slack is between the sighter and the hook.
+ */
+(function (EN) {
+  'use strict';
+
+  var clamp = EN.clamp;
+
+  var SPECIES = [
+    { key: 'brown', name: 'Brown', body: '#a8813f', belly: '#e6d2a0', spot: '#4a2f14' },
+    { key: 'rainbow', name: 'Rainbow', body: '#7d8b96', belly: '#e8eef2', spot: '#2f3a44' }
+  ];
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  function Fish(river, lie, index) {
+    this.river = river;
+    this.lie = lie;
+    this.index = index;
+    this.species = SPECIES[Math.floor(Math.random() * SPECIES.length)];
+
+    this.lengthCm = Math.round(rand(24, 30 + lie.quality * 22));
+    this.mass = Math.pow(this.lengthCm / 30, 3);   // relative "how much it pulls"
+
+    this.x = lie.x;
+    this.y = river.bedY(lie.x) + rand(0.10, 0.20);
+    this.homeY = this.y;
+    this.vx = 0; this.vy = 0;
+
+    this.state = 'holding';      // holding | taken | hooked | landed | lost | spooked
+    this.interest = 0;
+    this.spook = 0;
+    this.cooldown = 0;
+    this.sway = Math.random() * Math.PI * 2;
+
+    this.takenFly = null;
+    this.holdTime = 0;
+    this.holdWindow = 0;
+
+    this.stamina = 1;
+    this.surge = 0;
+    this.surgeTimer = rand(0.4, 1.4);
+    this.slackTime = 0;
+    this.tippetDamage = 0;
+  }
+
+  /** The point in front of the fish where it will actually intercept a fly. */
+  Fish.prototype.mouth = function () {
+    return { x: this.x + 0.06, y: this.y + 0.02 };
+  };
+
+  Fish.prototype.visible = function () {
+    return this.state !== 'landed' && this.state !== 'lost';
+  };
+
+  /**
+   * Score a fly the way the fish would: is it deep enough, and is it moving
+   * with the water rather than being towed across it?
+   */
+  Fish.prototype.judge = function (node) {
+    var river = this.river;
+    var m = this.mouth();
+    var dx = node.x - m.x, dy = node.y - m.y;
+    var dist = Math.hypot(dx, dy);
+    var window = 0.38 + this.lengthCm / 240;
+    if (dist > window) return null;
+
+    var u = river.speedAt(node.x, node.y);
+    var dragErr = Math.hypot(node.vx - u, node.vy * 0.6);
+    var dead = clamp(1 - dragErr / 0.34, 0, 1);
+
+    var above = river.heightAboveBed(node.x, node.y);
+    var depthScore = clamp(1 - Math.max(0, above - 0.14) / 0.42, 0, 1);
+
+    var proximity = clamp(1 - dist / window, 0, 1);
+
+    return {
+      dead: dead,
+      depth: depthScore,
+      proximity: proximity,
+      dragErr: dragErr,
+      quality: Math.pow(dead, 1.5) * depthScore * (0.45 + 0.55 * proximity)
+    };
+  };
+
+  Fish.prototype.updateHolding = function (dt, flies) {
+    this.sway += dt * 1.6;
+    var target = this.homeY + Math.sin(this.sway) * 0.015;
+    this.y += (target - this.y) * Math.min(1, dt * 4);
+    this.x += (this.lie.x - this.x) * Math.min(1, dt * 2);
+
+    this.spook = Math.max(0, this.spook - dt * 0.22);
+    if (this.cooldown > 0) {
+      this.cooldown -= dt;
+      this.interest = 0;
+      return null;
+    }
+
+    var best = null, bestFly = null;
+    for (var i = 0; i < flies.length; i++) {
+      var verdict = this.judge(flies[i]);
+      if (verdict && (!best || verdict.quality > best.quality)) {
+        best = verdict; bestFly = flies[i];
+      }
+    }
+
+    if (!best) {
+      this.interest = Math.max(0, this.interest - dt * 0.9);
+      return null;
+    }
+
+    // A fly ripping across the window is worse than no fly at all.
+    if (best.dragErr > 0.55 && best.proximity > 0.5) {
+      this.spook = Math.min(1, this.spook + dt * this.river.preset.spook * 2.2);
+    }
+
+    var willing = (1 - this.spook) * this.lie.quality;
+    this.interest += dt * best.quality * willing * 7.5;
+
+    if (this.interest >= 1) {
+      this.eat(bestFly, best);
+      return { type: 'take', quality: best.quality };
+    }
+    return null;
+  };
+
+  Fish.prototype.eat = function (fly, verdict) {
+    this.state = 'taken';
+    this.takenFly = fly;
+    this.holdTime = 0;
+    // Confident fish on a good drift hold longer; a suspicious one spits fast.
+    this.holdWindow = 0.32 + verdict.quality * 0.42 + (1 - this.river.preset.spook) * 0.18;
+    this.interest = 0;
+    this.turn = { x: this.x - 0.05, y: this.y - 0.04 };
+  };
+
+  Fish.prototype.updateTaken = function (dt) {
+    this.holdTime += dt;
+    // The fish turns down and slightly across as it closes on the fly. That
+    // small movement is the only thing the sighter has to work with.
+    var t = clamp(this.holdTime / Math.max(0.08, this.holdWindow), 0, 1);
+    this.x -= dt * (0.22 + 0.35 * t);
+    this.y -= dt * (0.10 + 0.24 * t);
+
+    if (this.holdTime >= this.holdWindow) {
+      this.state = 'holding';
+      this.takenFly = null;
+      this.cooldown = 2.4 + Math.random() * 2.4;
+      this.spook = Math.min(1, this.spook + 0.45);
+      return { type: 'rejected' };
+    }
+    return null;
+  };
+
+  /** Probability the hook actually finds a hold when you lift. */
+  Fish.prototype.hookChance = function (contact, reaction) {
+    var late = clamp(reaction / Math.max(0.1, this.holdWindow), 0, 1);
+    var base = 0.18 + 0.72 * clamp((contact - 0.62) / 0.34, 0, 1);
+    return clamp(base * (1 - 0.45 * late * late), 0.03, 0.96);
+  };
+
+  Fish.prototype.hookUp = function () {
+    this.state = 'hooked';
+    this.stamina = 1;
+    this.surge = 1;
+    this.surgeTimer = 0.5;
+    this.slackTime = 0;
+    this.tippetDamage = 0;
+  };
+
+  /**
+   * Playing the fish. It swims where it wants; the leader is a rope from the
+   * rod tip, so line length and rod position decide how much it gets.
+   */
+  Fish.prototype.updateHooked = function (dt, tip, rig, tippetStrength, net) {
+    var river = this.river;
+
+    this.surgeTimer -= dt;
+    if (this.surgeTimer <= 0) {
+      this.surge = rand(0.35, 1) * (0.4 + 0.6 * this.stamina);
+      this.surgeTimer = rand(0.6, 1.9);
+    }
+
+    var dx = this.x - tip.x, dy = this.y - tip.y;
+    var dist = Math.max(1e-6, Math.hypot(dx, dy));
+    var awayX = dx / dist, awayY = dy / dist;
+
+    var power = (0.55 + 0.50 * Math.sqrt(this.mass)) * (0.10 + 0.90 * this.stamina) * this.surge;
+    var u = river.speedAt(this.x, this.y);
+
+    // Wants to bore away from the pressure, downward, and use the current.
+    var wantX = awayX * power * 1.2 + u * 0.5 - 0.2 * power;
+    var wantY = awayY * power * 0.45 - power * 0.5;
+
+    // A spent fish stops boring away and just gets shepherded in.
+    if (this.stamina < 0.25) {
+      var give = this.stamina / 0.25;
+      wantX = wantX * (0.25 + 0.75 * give) + u * 0.3 * (1 - give);
+      wantY *= (0.25 + 0.75 * give);
+    }
+
+    this.vx += (wantX - this.vx) * Math.min(1, dt * 5);
+    this.vy += (wantY - this.vy) * Math.min(1, dt * 5);
+
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+
+    var bed = river.bedY(this.x) + 0.05;
+    if (this.y < bed) { this.y = bed; this.vy = Math.max(0, this.vy); }
+    if (this.y > -0.04) { this.y = -0.04; this.vy = Math.min(0, this.vy); }
+    this.x = clamp(this.x, EN.WORLD.xMin + 0.2, EN.WORLD.xMax - 0.2);
+
+    // The rod and the leader are a spring, not a wall. Load builds over about
+    // half a metre of give, which is what lets you steer a fish instead of
+    // simply snapping it off.
+    dx = this.x - tip.x; dy = this.y - tip.y;
+    dist = Math.max(1e-6, Math.hypot(dx, dy));
+    awayX = dx / dist; awayY = dy / dist;
+
+    var span = rig.lengthTo(this.takenFly);
+    var ext = dist - span;
+    var tension = 0;
+    if (ext > 0) {
+      tension = clamp(ext / 0.5, 0, 2);
+      var pull = tension * 6.2;
+      this.vx -= awayX * pull * dt;
+      this.vy -= awayY * pull * dt;
+      // Hard stop well past full load so nothing can run away to infinity.
+      var maxExt = 0.80;
+      if (ext > maxExt) {
+        this.x -= awayX * (ext - maxExt);
+        this.y -= awayY * (ext - maxExt);
+        ext = maxExt;
+        tension = clamp(ext / 0.5, 0, 2);
+      }
+    }
+
+    this.stamina = Math.max(0, this.stamina - dt * (0.075 + tension * 0.22) / Math.max(0.85, this.mass));
+
+    if (tension > tippetStrength * 0.86) {
+      this.tippetDamage += dt * (tension - tippetStrength * 0.86) * 2.2;
+    } else {
+      this.tippetDamage = Math.max(0, this.tippetDamage - dt * 0.25);
+    }
+
+    // A hook only falls out of a green fish. Once it is beaten and alongside
+    // you, a slack moment is not a disaster.
+    if (tension < 0.05 && this.stamina > 0.40) this.slackTime += dt;
+    else this.slackTime = 0;
+
+    var result = null;
+    if (this.tippetDamage >= 1) {
+      this.state = 'lost';
+      result = { type: 'broke' };
+    } else if (this.slackTime > 1.8) {
+      this.state = 'lost';
+      result = { type: 'pulled' };
+    } else if (this.stamina < 0.35 && net &&
+               Math.hypot(this.x - net.x, this.y - net.y) < 1.00) {
+      // Landed at your feet, not at the rod tip — which is why you have to
+      // drop the rod and lead it in at the end.
+      this.state = 'landed';
+      result = { type: 'landed' };
+    }
+
+    this.tension = tension;
+    return result;
+  };
+
+  function School(river) {
+    this.river = river;
+    this.reset();
+  }
+
+  School.prototype.reset = function () {
+    this.fish = [];
+    var lies = this.river.preset.lies;
+    for (var i = 0; i < lies.length; i++) {
+      // Not every lie holds a fish, and you never know which.
+      if (Math.random() < 0.35 + lies[i].quality * 0.5) {
+        this.fish.push(new Fish(this.river, lies[i], i));
+      }
+    }
+    if (!this.fish.length) this.fish.push(new Fish(this.river, lies[0], 0));
+  };
+
+  School.prototype.active = function () {
+    for (var i = 0; i < this.fish.length; i++) {
+      var f = this.fish[i];
+      if (f.state === 'taken' || f.state === 'hooked') return f;
+    }
+    return null;
+  };
+
+  EN.Fish = Fish;
+  EN.School = School;
+  EN.SPECIES = SPECIES;
+})(window.EN = window.EN || {});
+
+/*
+ * game.js — session state: casting, drifting, the take, the strike, the fight,
+ * plus the drift scoring and the coach that tells you why you keep missing.
+ */
+(function (EN) {
+  'use strict';
+
+  var clamp = EN.clamp;
+  var PHYS_DT = 1 / 240;
+
+  var TIPPET = {
+    0.10: { label: '0.10 mm (7X)', strength: 0.62 },
+    0.12: { label: '0.12 mm (6X)', strength: 0.80 },
+    0.14: { label: '0.14 mm (5X)', strength: 1.00 },
+    0.16: { label: '0.16 mm (4X)', strength: 1.22 },
+    0.18: { label: '0.18 mm (3X)', strength: 1.45 }
+  };
+
+  function Game() {
+    this.river = new EN.River('riffle');
+    this.school = new EN.School(this.river);
+
+    this.grip = { x: 6.90, y: 1.00 };
+    this.netPoint = { x: 6.35, y: -0.10 };   // where a fish is actually landed
+    this.rodLength = 3.20;
+    this.tip = { x: 5.3, y: 1.9 };
+    this.tipTarget = { x: 5.3, y: 1.9 };
+    this.gathering = false;
+
+    this.rig = new EN.Rig({ leaderLength: 3.2, pointBead: 3.5, tippet: 0.14 });
+    this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 1.0, this.tip.y - 1.2);
+
+    this.phase = 'ready';
+    this.phaseTime = 0;
+    this.driftTime = 0;
+    this.showLies = false;
+    this.paused = false;
+
+    this.stats = {
+      drifts: 0, takes: 0, hooked: 0, landed: 0, lost: 0, missed: 0,
+      bestFish: 0, zonePct: 0, contactPct: 0, deadPct: 0
+    };
+    this.drift = this._blankDrift();
+    this.lastDrift = null;
+
+    this.messages = [];
+    this.coachCooldown = 0;
+    this.events = [];
+
+    this.say('Left-click or press Space to make a tuck cast upstream.', 'info');
+  }
+
+  Game.prototype._blankDrift = function () {
+    return { t: 0, submerged: 0, zone: 0, dead: 0, contact: 0, best: 0 };
+  };
+
+  Game.prototype.say = function (text, kind) {
+    this.messages.unshift({ text: text, kind: kind || 'info', life: 5.5 });
+    if (this.messages.length > 4) this.messages.length = 4;
+  };
+
+  Game.prototype.coach = function (text) {
+    if (this.coachCooldown > 0) return;
+    this.coachCooldown = 5.0;
+    this.say(text, 'coach');
+  };
+
+  Game.prototype.setPreset = function (key) {
+    this.river.setPreset(key);
+    this.school = new EN.School(this.river);
+    this.resetDrift();
+    this.say(this.river.preset.name + ' — ' + this.river.preset.blurb, 'info');
+  };
+
+  Game.prototype.setRig = function (patch) {
+    this.rig.configure(patch);
+    this.resetDrift();
+  };
+
+  Game.prototype.tippetStrength = function () {
+    var t = TIPPET[this.rig.config.tippet];
+    return t ? t.strength : 1.0;
+  };
+
+  Game.prototype.resetDrift = function () {
+    this.rig.anchor = null;
+    this.rig.gathering = false;
+    this.rig.lineOut = this.rig.config.leaderLength;
+    this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 0.9, this.tip.y - 1.3);
+    this.phase = 'ready';
+    this.phaseTime = 0;
+    this.drift = this._blankDrift();
+  };
+
+  /** Rod tip follows the pointer, but only as far as a 10'6" rod can reach. */
+  Game.prototype.setTipTarget = function (x, y) {
+    // You cannot hold the tip much past your own downstream shoulder, and it
+    // has to stay in the frame.
+    x = clamp(x, EN.WORLD.xMin + 0.25, Math.min(this.grip.x + 0.35, EN.WORLD.xMax - 0.25));
+    y = clamp(y, 0.08, EN.WORLD.yTop - 0.15);
+
+    var dx = x - this.grip.x, dy = y - this.grip.y;
+    var d = Math.hypot(dx, dy);
+    var maxR = this.rodLength, minR = 1.1;
+    if (d > maxR) { x = this.grip.x + dx / d * maxR; y = this.grip.y + dy / d * maxR; }
+    else if (d < minR && d > 1e-6) { x = this.grip.x + dx / d * minR; y = this.grip.y + dy / d * minR; }
+
+    this.tipTarget.x = x;
+    this.tipTarget.y = clamp(y, 0.08, EN.WORLD.yTop - 0.15);
+  };
+
+  Game.prototype.cast = function () {
+    if (this.phase === 'fighting') return;
+    var reach = this.rig.config.leaderLength * 0.82;
+    var tx = clamp(this.tip.x - reach, EN.WORLD.xMin + 0.4, this.tip.x - 0.9);
+    var ty = 0.22;
+
+    this.rig.layout(this.tip.x, this.tip.y, tx, ty);
+    // A tuck cast: the flies are driven down and slightly back under the tip so
+    // they enter the water leading the leader, not trailing it.
+    this.rig.setPointVelocity(0.35, -2.4);
+    var d = this.rig.dropper();
+    if (d) { d.vx = 0.3; d.vy = -1.9; }
+
+    for (var i = 0; i < this.school.fish.length; i++) {
+      var f = this.school.fish[i];
+      // Landing the rig on a fish's head costs you.
+      var near = Math.abs(f.x - tx);
+      if (near < 0.5) f.spook = Math.min(1, f.spook + this.river.preset.spook * (1 - near / 0.5));
+    }
+
+    this.phase = 'drifting';
+    this.phaseTime = 0;
+    this.driftTime = 0;
+    this.drift = this._blankDrift();
+  };
+
+  Game.prototype.strike = function () {
+    if (this.phase === 'fighting') return;
+    if (this.phase !== 'drifting') { this.cast(); return; }
+
+    var fish = this.school.active();
+    if (fish && fish.state === 'taken') {
+      var chance = fish.hookChance(this.rig.contact, fish.holdTime);
+      if (Math.random() < chance) {
+        fish.hookUp();
+        this._anchorTo(fish);
+        // Come tight straight away: the lift that set the hook also took up the
+        // slack, so the fight starts with a bend in the rod.
+        var fly = this.rig.anchor.node;
+        var span = Math.hypot(fly.x - this.tip.x, fly.y - this.tip.y);
+        this.rig.lineOut = clamp(span - 0.25, 0.9, this.rig.config.leaderLength);
+        this.phase = 'fighting';
+        this.phaseTime = 0;
+        this.stats.hooked++;
+        this.say('Hooked up — ' + fish.lengthCm + ' cm ' + fish.species.name.toLowerCase() + '!', 'good');
+      } else {
+        fish.state = 'holding';
+        fish.cooldown = 3 + Math.random() * 3;
+        fish.spook = 1;
+        fish.takenFly = null;
+        this.rig.anchor = null;
+        this.stats.missed++;
+        this.say('Lifted into it and came up empty.', 'bad');
+        if (this.rig.contact < 0.8) {
+          this.coach('There was too much slack to drive the hook. Keep the sighter just taut.');
+        } else {
+          this.coach('Close. A shorter, faster lift downstream sticks more of those.');
+        }
+        this._liftFlies();
+      }
+      return;
+    }
+
+    // A strike at nothing is not free: it yanks the flies off the bottom.
+    this.stats.missed++;
+    this._liftFlies();
+    this.say('Nothing there — that lift pulled the flies up.', 'info');
+  };
+
+  Game.prototype._liftFlies = function () {
+    var p = this.rig.point();
+    p.vy += 2.4; p.vx -= 0.5;
+    var d = this.rig.dropper();
+    if (d) { d.vy += 2.0; d.vx -= 0.4; }
+  };
+
+  Game.prototype.update = function (dt) {
+    if (this.paused) return;
+    dt = Math.min(dt, 0.05);
+
+    this.river.update(dt);
+    this.phaseTime += dt;
+    this.coachCooldown = Math.max(0, this.coachCooldown - dt);
+    for (var m = this.messages.length - 1; m >= 0; m--) {
+      this.messages[m].life -= dt;
+      if (this.messages[m].life <= 0) this.messages.splice(m, 1);
+    }
+
+    // Rod tip lags the hand a little; that lag is where slack comes from.
+    var k = Math.min(1, dt * 16);
+    this.tip.x += (this.tipTarget.x - this.tip.x) * k;
+    this.tip.y += (this.tipTarget.y - this.tip.y) * k;
+
+    this.rig.gathering = this.gathering && this.phase === 'fighting';
+    if (this.phase === 'fighting') {
+      var min = 0.85, max = this.rig.config.leaderLength + 2.2;
+      var load = this.hudState().tension;
+      if (this.gathering) {
+        this.rig.lineOut = Math.max(min, this.rig.lineOut - dt * 0.5);
+      } else {
+        // Let go and the rod and your hand yield, but only once it is really
+        // pulling. That give is what saves the tippet on a surge.
+        this.rig.lineOut = Math.min(max, this.rig.lineOut + dt * Math.max(0, load - 0.55) * 1.7);
+      }
+    }
+
+    var steps = Math.max(1, Math.min(8, Math.round(dt / PHYS_DT)));
+    var sub = dt / steps;
+    for (var s = 0; s < steps; s++) this.rig.step(sub, this.tip, this.river);
+
+    this._updateFish(dt);
+    if (this.phase === 'drifting') this._scoreDrift(dt);
+  };
+
+  Game.prototype._anchorTo = function (fish) {
+    var m = fish.mouth();
+    this.rig.anchor = { x: m.x, y: m.y, node: fish.takenFly || this.rig.point() };
+  };
+
+  Game.prototype._updateFish = function (dt) {
+    var flies = [this.rig.point()];
+    var dropper = this.rig.dropper();
+    if (dropper) flies.push(dropper);
+
+    // Nothing has hold of a fly unless a fish does.
+    var busy = this.school.active();
+    if (!busy) this.rig.anchor = null;
+
+    for (var i = 0; i < this.school.fish.length; i++) {
+      var f = this.school.fish[i];
+      if (f.state === 'landed' || f.state === 'lost') continue;
+
+      if (f.state === 'holding') {
+        if (this.phase === 'drifting') {
+          var ev = f.updateHolding(dt, flies);
+          if (ev && ev.type === 'take') {
+            this.stats.takes++;
+            this._anchorTo(f);
+            this.say('Take!', 'alert');
+          }
+        } else {
+          f.updateHolding(dt, []);
+        }
+      } else if (f.state === 'taken') {
+        this._anchorTo(f);
+        var rej = f.updateTaken(dt);
+        if (rej) {
+          this.rig.anchor = null;
+          if (this.rig.contact < 0.78) {
+            this.say('A fish ate and spat it — you never saw it.', 'bad');
+            this.coach('Slack hides takes. Lead the sighter downstream so it stays just tight.');
+          } else {
+            this.say('A fish ate and spat it out.', 'bad');
+          }
+        }
+      } else if (f.state === 'hooked') {
+        this._anchorTo(f);
+        var res = f.updateHooked(dt, this.tip, this.rig, this.tippetStrength(), this.netPoint);
+        if (!res && f.stamina < 0.45) {
+          if ((f.tension || 0) > 0.95) {
+            this.coach('Drop the rod tip and lead it to your feet — you cannot land it with the rod held high.');
+          } else if (Math.hypot(f.x - this.netPoint.x, f.y - this.netPoint.y) > 1.4) {
+            this.coach('It is beaten. Low rod, short line, walk it in to your side.');
+          }
+        }
+        if (res) this._endFight(f, res);
+      }
+    }
+  };
+
+  Game.prototype._endFight = function (fish, res) {
+    this.rig.anchor = null;
+    this.phase = 'ready';
+    this.phaseTime = 0;
+    this.rig.lineOut = this.rig.config.leaderLength;
+
+    if (res.type === 'landed') {
+      this.stats.landed++;
+      this.stats.bestFish = Math.max(this.stats.bestFish, fish.lengthCm);
+      this.say('Landed — ' + fish.lengthCm + ' cm ' + fish.species.name.toLowerCase() + '. Nicely done.', 'good');
+    } else if (res.type === 'broke') {
+      this.stats.lost++;
+      this.say('Snap. Tippet gone.', 'bad');
+      this.coach('Give line when it surges — drop the rod tip downstream instead of holding hard.');
+    } else {
+      this.stats.lost++;
+      this.say('Hook pulled free.', 'bad');
+      this.coach('Keep a steady bend on. Slack lets the hook fall out.');
+    }
+    this.school.reset();
+  };
+
+  Game.prototype._scoreDrift = function (dt) {
+    var river = this.river;
+    var p = this.rig.point();
+    var d = this.drift;
+    d.t += dt;
+
+    if (p.y < 0) {
+      d.submerged += dt;
+      var above = river.heightAboveBed(p.x, p.y);
+      var u = river.speedAt(p.x, p.y);
+      var dragErr = Math.abs(p.vx - u);
+
+      if (above < 0.28) d.zone += dt;
+      if (dragErr < 0.14) d.dead += dt;
+      if (this.rig.contact > 0.82 && this.rig.contact < 0.998) d.contact += dt;
+
+      if (d.submerged > 1.2) {
+        if (above > 0.55) {
+          this.coach('You are riding high. Cast further upstream, go heavier, or lengthen the leader.');
+        } else if (this.rig.contact < 0.72) {
+          this.coach('Big belly in the leader — raise the tip and lead the sighter with the drift.');
+        } else if (dragErr > 0.30 && this.rig.contact > 0.99) {
+          this.coach('You are dragging the flies. Let the sighter travel at the speed of the water.');
+        } else if (Math.abs(p.vx) < 0.05 && above < 0.05) {
+          this.coach('Anchored on the bottom. Lighter bug, or lift a touch.');
+        }
+      }
+    }
+
+    // Drift is over once the flies come level with you.
+    if (this.school.active()) return;
+    if (p.x > this.grip.x - 0.35 || this.phaseTime > 26) {
+      this._finishDrift();
+    }
+  };
+
+  Game.prototype._finishDrift = function () {
+    var d = this.drift;
+    this.phase = 'ready';
+    this.phaseTime = 0;
+    this.rig.anchor = null;
+
+    // A cast that skated through without ever fishing does not get scored.
+    if (d.submerged < 0.4) return;
+    this.stats.drifts++;
+
+    var base = Math.max(0.2, d.submerged);
+    var res = {
+      zone: clamp(d.zone / base, 0, 1),
+      dead: clamp(d.dead / base, 0, 1),
+      contact: clamp(d.contact / base, 0, 1),
+      length: d.submerged
+    };
+    res.score = Math.round((res.zone * 0.4 + res.dead * 0.35 + res.contact * 0.25) * 100);
+    this.lastDrift = res;
+
+    var n = this.stats.drifts;
+    this.stats.zonePct += (res.zone * 100 - this.stats.zonePct) / Math.max(1, n);
+    this.stats.deadPct += (res.dead * 100 - this.stats.deadPct) / Math.max(1, n);
+    this.stats.contactPct += (res.contact * 100 - this.stats.contactPct) / Math.max(1, n);
+  };
+
+  Game.prototype.hudState = function () {
+    var p = this.rig.point();
+    var river = this.river;
+    var above = river.heightAboveBed(p.x, p.y);
+    var u = river.speedAt(p.x, p.y);
+    var fish = this.school.active();
+    return {
+      depth: p.y < 0 ? above : null,
+      totalDepth: river.depth(p.x),
+      drag: p.y < 0 ? p.vx - u : 0,
+      contact: this.rig.contact,
+      tension: fish && fish.state === 'hooked' ? (fish.tension || 0) : 0,
+      stamina: fish && fish.state === 'hooked' ? fish.stamina : 0,
+      lineOut: this.rig.lineOut,
+      fish: fish
+    };
+  };
+
+  EN.Game = Game;
+  EN.TIPPET = TIPPET;
+})(window.EN = window.EN || {});
+
+/*
+ * render.js — canvas drawing for the river, the rig and the fish.
+ *
+ * Drifting particles are advected by the same velocity field the leader feels,
+ * so what you see on screen really is what is pushing your bugs around.
+ */
+(function (EN) {
+  'use strict';
+
+  var W = EN.WORLD;
+
+  function Renderer(canvas, game) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.game = game;
+    this.particles = [];
+    this.foam = [];
+    this.t = 0;
+    this.resize();
+    this._seedParticles(260);
+  }
+
+  // Metres of river to keep across the canvas, and where the eye should sit.
+  var VIEW_WIDTH = 6.2;
+  var FOCUS_X = 4.35;
+
+  Renderer.prototype.resize = function () {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var rect = this.canvas.getBoundingClientRect();
+    this.canvas.width = Math.max(1, Math.round(rect.width * dpr));
+    this.canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.cw = rect.width;
+    this.ch = rect.height;
+    this.fit();
+  };
+
+  /**
+   * Frame the beat: deep water gets pulled back, a shallow riffle gets pushed
+   * in, so the picture is never mostly empty sky.
+   */
+  Renderer.prototype.fit = function () {
+    var depth = (this.game.river.maxDepth || 1.0) + 0.35;
+    var worldH = W.yTop + depth;
+    this.scale = Math.min(this.cw / VIEW_WIDTH, this.ch / worldH);
+    this.ox = this.cw * 0.5 - FOCUS_X * this.scale;
+    this.oy = (this.ch - worldH * this.scale) / 2;
+    this._fitKey = this.game.river.preset.key;
+  };
+
+  Renderer.prototype.sx = function (x) { return this.ox + x * this.scale; };
+  Renderer.prototype.sy = function (y) { return this.oy + (W.yTop - y) * this.scale; };
+  Renderer.prototype.toWorld = function (px, py) {
+    return { x: (px - this.ox) / this.scale, y: W.yTop - (py - this.oy) / this.scale };
+  };
+
+  Renderer.prototype._seedParticles = function (n) {
+    this.particles.length = 0;
+    for (var i = 0; i < n; i++) {
+      this.particles.push({
+        x: W.xMin + Math.random() * (W.xMax - W.xMin),
+        y: -Math.random() * 1.6,
+        len: 0.06 + Math.random() * 0.16,
+        a: 0.05 + Math.random() * 0.18
+      });
+    }
+  };
+
+  Renderer.prototype.update = function (dt) {
+    this.t += dt;
+    var river = this.game.river;
+    if (this._fitKey !== river.preset.key) this.fit();
+    for (var i = 0; i < this.particles.length; i++) {
+      var p = this.particles[i];
+      var bed = river.bedY(p.x);
+      if (p.y < bed) p.y = bed + 0.02;
+      p.x += river.speedAt(p.x, p.y) * dt;
+      if (p.x > W.xMax) {
+        p.x = W.xMin - Math.random() * 0.4;
+        p.y = -Math.random() * Math.max(0.15, river.depth(p.x) * 0.98);
+      }
+    }
+  };
+
+  Renderer.prototype.draw = function () {
+    var ctx = this.ctx;
+    ctx.clearRect(0, 0, this.cw, this.ch);
+    this._drawSky();
+    this._drawWater();
+    this._drawParticles();
+    this._drawBed();
+    if (this.game.showLies) this._drawLies();
+    this._drawFish();
+    this._drawSurface();
+    this._drawAngler();
+    this._drawRig();
+    this._drawDepthRuler();
+  };
+
+  Renderer.prototype._drawSky = function () {
+    var ctx = this.ctx;
+    var horizon = this.sy(0);
+    var g = ctx.createLinearGradient(0, 0, 0, horizon);
+    g.addColorStop(0, '#16212c');
+    g.addColorStop(0.55, '#283a46');
+    g.addColorStop(1, '#43545c');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, this.cw, horizon);
+
+    var x, h;
+    // Far ridge, hazed out by distance.
+    ctx.fillStyle = 'rgba(46,66,72,0.75)';
+    ctx.beginPath();
+    ctx.moveTo(0, horizon);
+    for (x = 0; x <= this.cw; x += 20) {
+      h = horizon * 0.44 + Math.sin(x * 0.0032 + 0.6) * horizon * 0.10
+        + Math.sin(x * 0.0071 + 2.2) * horizon * 0.05;
+      ctx.lineTo(x, horizon - h);
+    }
+    ctx.lineTo(this.cw, horizon);
+    ctx.closePath();
+    ctx.fill();
+
+    // Near bank: bush right down to the water.
+    ctx.fillStyle = 'rgba(25,44,37,0.95)';
+    ctx.beginPath();
+    ctx.moveTo(0, horizon);
+    for (x = 0; x <= this.cw; x += 14) {
+      h = horizon * 0.17 + Math.sin(x * 0.010) * horizon * 0.05
+        + Math.sin(x * 0.027 + 1.7) * horizon * 0.025
+        + Math.sin(x * 0.061 + 0.4) * horizon * 0.012;
+      ctx.lineTo(x, horizon - h);
+    }
+    ctx.lineTo(this.cw, horizon);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  Renderer.prototype._drawWater = function () {
+    var ctx = this.ctx;
+    var top = this.sy(0);
+    var g = ctx.createLinearGradient(0, top, 0, this.ch);
+    g.addColorStop(0, '#2c5a63');
+    g.addColorStop(0.55, '#1d4048');
+    g.addColorStop(1, '#12292f');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, top, this.cw, this.ch - top);
+  };
+
+  Renderer.prototype._drawParticles = function () {
+    var ctx = this.ctx;
+    var river = this.game.river;
+    ctx.lineCap = 'round';
+    for (var i = 0; i < this.particles.length; i++) {
+      var p = this.particles[i];
+      var u = river.speedAt(p.x, p.y);
+      var len = p.len * (0.3 + u);
+      ctx.strokeStyle = 'rgba(190,226,232,' + (p.a * (0.35 + u * 0.7)).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(0.6, 1.1 * this.scale / 90);
+      ctx.beginPath();
+      ctx.moveTo(this.sx(p.x - len), this.sy(p.y));
+      ctx.lineTo(this.sx(p.x), this.sy(p.y));
+      ctx.stroke();
+    }
+  };
+
+  Renderer.prototype._drawBed = function () {
+    var ctx = this.ctx;
+    var river = this.game.river;
+    ctx.beginPath();
+    ctx.moveTo(this.sx(W.xMin - 0.5), this.ch);
+    for (var x = W.xMin - 0.5; x <= W.xMax + 0.5; x += 0.08) {
+      ctx.lineTo(this.sx(x), this.sy(river.bedY(x)));
+    }
+    ctx.lineTo(this.sx(W.xMax + 0.5), this.ch);
+    ctx.closePath();
+    var g = ctx.createLinearGradient(0, this.sy(-0.3), 0, this.ch);
+    g.addColorStop(0, '#3b3a30');
+    g.addColorStop(1, '#22211c');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // Cobble texture, deterministic so it does not shimmer.
+    ctx.save();
+    ctx.clip();
+    for (var i = 0; i < 190; i++) {
+      var rx = W.xMin + ((i * 0.6180339887) % 1) * (W.xMax - W.xMin);
+      var depthOffset = ((i * 0.2794) % 1) * 0.34;
+      var ry = river.bedY(rx) - depthOffset;
+      var rr = (0.03 + ((i * 0.4142) % 1) * 0.06) * this.scale;
+      ctx.fillStyle = i % 3 === 0 ? 'rgba(120,112,92,0.35)' : 'rgba(70,66,54,0.45)';
+      ctx.beginPath();
+      ctx.ellipse(this.sx(rx), this.sy(ry), rr, rr * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    var rocks = river.preset.rocks || [];
+    for (var r = 0; r < rocks.length; r++) {
+      var rock = rocks[r];
+      var cy = river.bedY(rock.x) + rock.r * 0.55;
+      var rad = rock.r * this.scale;
+      var rg = ctx.createRadialGradient(
+        this.sx(rock.x) - rad * 0.3, this.sy(cy) - rad * 0.4, rad * 0.15,
+        this.sx(rock.x), this.sy(cy), rad);
+      rg.addColorStop(0, '#5d5a4c');
+      rg.addColorStop(1, '#2b2a23');
+      ctx.fillStyle = rg;
+      ctx.beginPath();
+      ctx.ellipse(this.sx(rock.x), this.sy(cy), rad, rad * 0.82, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  };
+
+  Renderer.prototype._drawLies = function () {
+    var ctx = this.ctx;
+    var river = this.game.river;
+    var lies = river.preset.lies;
+    for (var i = 0; i < lies.length; i++) {
+      var lie = lies[i];
+      var y = river.bedY(lie.x) + 0.16;
+      var r = (0.34 + lie.quality * 0.14) * this.scale;
+      ctx.strokeStyle = 'rgba(255,214,120,0.35)';
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(this.sx(lie.x), this.sy(y), r, r * 0.62, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,214,120,0.6)';
+      ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(lie.name, this.sx(lie.x), this.sy(y) - r * 0.7 - 6);
+    }
+  };
+
+  Renderer.prototype._drawFish = function () {
+    var ctx = this.ctx;
+    var fishes = this.game.school.fish;
+    for (var i = 0; i < fishes.length; i++) {
+      var f = fishes[i];
+      if (!f.visible()) continue;
+      // Holding fish are hard to pick out unless you are in learning mode.
+      var hidden = f.state === 'holding' && !this.game.showLies;
+      this._drawOneFish(f, hidden ? 0.16 : 1);
+    }
+  };
+
+  Renderer.prototype._drawOneFish = function (f, alpha) {
+    var ctx = this.ctx;
+    var L = (f.lengthCm / 100) * this.scale;
+    var x = this.sx(f.x), y = this.sy(f.y);
+    // Trout point into the current, so they face upstream (screen left).
+    var heading = Math.PI + Math.atan2(-(f.vy || 0), -(f.vx || -0.01) - 0.4);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    ctx.rotate(heading);
+
+    ctx.fillStyle = f.species.body;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, L * 0.5, L * 0.145, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = f.species.belly;
+    ctx.globalAlpha = alpha * 0.55;
+    ctx.beginPath();
+    ctx.ellipse(0, L * 0.055, L * 0.42, L * 0.075, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = alpha;
+
+    // Tail
+    var wag = Math.sin(this.t * (f.state === 'hooked' ? 16 : 5) + f.index) * 0.35;
+    ctx.save();
+    ctx.translate(L * 0.48, 0);
+    ctx.rotate(wag);
+    ctx.fillStyle = f.species.body;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(L * 0.20, -L * 0.14);
+    ctx.lineTo(L * 0.15, 0);
+    ctx.lineTo(L * 0.20, L * 0.14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Dorsal + adipose
+    ctx.fillStyle = f.species.spot;
+    ctx.beginPath();
+    ctx.moveTo(-L * 0.02, -L * 0.13);
+    ctx.lineTo(L * 0.14, -L * 0.24);
+    ctx.lineTo(L * 0.16, -L * 0.12);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.globalAlpha = alpha * 0.7;
+    for (var s = 0; s < 7; s++) {
+      var sx = -L * 0.3 + s * L * 0.1;
+      ctx.beginPath();
+      ctx.arc(sx, Math.sin(s * 2.1) * L * 0.05, L * 0.018, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = alpha;
+
+    ctx.fillStyle = '#0d0d0d';
+    ctx.beginPath();
+    ctx.arc(-L * 0.42, -L * 0.03, L * 0.026, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  Renderer.prototype._drawSurface = function () {
+    var ctx = this.ctx;
+    var river = this.game.river;
+    var y0 = this.sy(0);
+    ctx.strokeStyle = 'rgba(206,238,244,0.55)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for (var px = 0; px <= this.cw; px += 6) {
+      var wx = this.toWorld(px, 0).x;
+      var chop = Math.min(1, river.surfaceSpeed(wx) / 1.2);
+      var wave = Math.sin(wx * 7 - this.t * 5) * 1.6 * chop
+               + Math.sin(wx * 15 + this.t * 3.2) * 0.9 * chop;
+      if (px === 0) ctx.moveTo(px, y0 + wave); else ctx.lineTo(px, y0 + wave);
+    }
+    ctx.stroke();
+  };
+
+  Renderer.prototype._drawAngler = function () {
+    var ctx = this.ctx;
+    var g = this.game;
+    var gx = this.sx(g.grip.x), gy = this.sy(g.grip.y);
+    var footY = this.sy(g.river.bedY(g.grip.x));
+    var hipY = this.sy(0.35);
+
+    ctx.strokeStyle = '#16252b';
+    ctx.fillStyle = '#16252b';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 0.085 * this.scale;
+    ctx.beginPath();
+    ctx.moveTo(gx + 0.34 * this.scale, footY);
+    ctx.lineTo(gx + 0.26 * this.scale, hipY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(gx + 0.48 * this.scale, footY);
+    ctx.lineTo(gx + 0.30 * this.scale, hipY);
+    ctx.stroke();
+
+    ctx.lineWidth = 0.115 * this.scale;
+    ctx.beginPath();
+    ctx.moveTo(gx + 0.28 * this.scale, hipY);
+    ctx.lineTo(gx + 0.33 * this.scale, this.sy(1.22));
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(gx + 0.34 * this.scale, this.sy(1.38), 0.085 * this.scale, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Casting arm reaching to the grip.
+    ctx.lineWidth = 0.055 * this.scale;
+    ctx.beginPath();
+    ctx.moveTo(gx + 0.31 * this.scale, this.sy(1.14));
+    ctx.lineTo(gx, gy);
+    ctx.stroke();
+
+    this._drawRod(gx, gy);
+  };
+
+  Renderer.prototype._drawRod = function (gx, gy) {
+    var ctx = this.ctx;
+    var g = this.game;
+    var tx = this.sx(g.tip.x), ty = this.sy(g.tip.y);
+    var hud = g.hudState();
+    // The rod loads under tension: bend the tip back toward the fish.
+    var bend = Math.min(1, hud.tension * 0.9 + g.rig.contact * 0.12) * 0.22 * this.scale;
+    var mx = (gx + tx) / 2, my = (gy + ty) / 2;
+    var nx = -(ty - gy), ny = (tx - gx);
+    var nl = Math.hypot(nx, ny) || 1;
+
+    var c1x = mx + nx / nl * bend, c1y = my + ny / nl * bend;
+
+    // Split the curve at its own midpoint (de Casteljau) so butt and tip meet
+    // cleanly instead of kinking.
+    var a1x = (gx + c1x) / 2, a1y = (gy + c1y) / 2;
+    var b1x = (c1x + tx) / 2, b1y = (c1y + ty) / 2;
+    var midx = (a1x + b1x) / 2, midy = (a1y + b1y) / 2;
+
+    ctx.strokeStyle = '#2b3238';
+    ctx.lineCap = 'round';
+    ctx.lineWidth = Math.max(2.0, 0.030 * this.scale);
+    ctx.beginPath();
+    ctx.moveTo(gx, gy);
+    ctx.quadraticCurveTo(a1x, a1y, midx, midy);
+    ctx.stroke();
+
+    // Tip section, fine and pale so it reads against the water.
+    ctx.strokeStyle = '#8d959b';
+    ctx.lineWidth = Math.max(1.0, 0.013 * this.scale);
+    ctx.beginPath();
+    ctx.moveTo(midx, midy);
+    ctx.quadraticCurveTo(b1x, b1y, tx, ty);
+    ctx.stroke();
+
+    // Cork.
+    ctx.strokeStyle = '#b79a68';
+    ctx.lineWidth = Math.max(2.6, 0.042 * this.scale);
+    var ux = (tx - gx), uy = (ty - gy);
+    var ul = Math.hypot(ux, uy) || 1;
+    ctx.beginPath();
+    ctx.moveTo(gx - ux / ul * 0.10 * this.scale, gy - uy / ul * 0.10 * this.scale);
+    ctx.lineTo(gx + ux / ul * 0.16 * this.scale, gy + uy / ul * 0.16 * this.scale);
+    ctx.stroke();
+  };
+
+  Renderer.prototype._drawRig = function () {
+    var ctx = this.ctx;
+    var rig = this.game.rig;
+    var nodes = rig.nodes;
+    var n = rig.config.nodes;
+
+    // Butt / running line: dull, low-vis.
+    this._strokeRange(nodes, 0, rig.sighterFrom, 'rgba(214,206,178,0.75)', 1.5);
+    // Tippet: nearly invisible, just a hint.
+    this._strokeRange(nodes, rig.sighterTo, n - 1, 'rgba(200,225,232,0.42)', 1.1);
+
+    // Sighter: bicolor, and it glows so your eye locks onto it.
+    ctx.save();
+    ctx.lineCap = 'round';
+    var bands = ['#ff7a1a', '#ffe14d', '#ff7a1a', '#b6ff5a'];
+    var total = rig.sighterTo - rig.sighterFrom;
+    for (var i = rig.sighterFrom; i < rig.sighterTo; i++) {
+      var a = nodes[i], b = nodes[i + 1];
+      var band = bands[Math.floor(((i - rig.sighterFrom) / Math.max(1, total)) * bands.length) % bands.length];
+      ctx.shadowColor = band;
+      ctx.shadowBlur = 8;
+      ctx.strokeStyle = band;
+      ctx.lineWidth = 3.0;
+      ctx.beginPath();
+      ctx.moveTo(this.sx(a.x), this.sy(a.y));
+      ctx.lineTo(this.sx(b.x), this.sy(b.y));
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    var d = rig.dropper();
+    if (d) {
+      var host = nodes[rig.dropperHost];
+      ctx.strokeStyle = 'rgba(200,225,232,0.42)';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.moveTo(this.sx(host.x), this.sy(host.y));
+      ctx.lineTo(this.sx(d.x), this.sy(d.y));
+      ctx.stroke();
+      this._drawFly(d, rig.config.dropperBead, '#c0d8c0');
+    }
+    this._drawFly(rig.point(), rig.config.pointBead, '#d9b24a');
+  };
+
+  Renderer.prototype._strokeRange = function (nodes, from, to, color, width) {
+    var ctx = this.ctx;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(this.sx(nodes[from].x), this.sy(nodes[from].y));
+    for (var i = from + 1; i <= to; i++) ctx.lineTo(this.sx(nodes[i].x), this.sy(nodes[i].y));
+    ctx.stroke();
+  };
+
+  Renderer.prototype._drawFly = function (node, beadMm, bodyColor) {
+    var ctx = this.ctx;
+    var r = Math.max(2, (beadMm / 1000) * this.scale * 2.6);
+    var x = this.sx(node.x), y = this.sy(node.y);
+    ctx.fillStyle = bodyColor;
+    ctx.beginPath();
+    ctx.ellipse(x + r * 0.9, y, r * 1.5, r * 0.72, 0, 0, Math.PI * 2);
+    ctx.fill();
+    var g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.2, x, y, r);
+    g.addColorStop(0, '#fff3c4');
+    g.addColorStop(1, '#a8791d');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  };
+
+  /** A quiet scale on the left so depth is readable at a glance. */
+  Renderer.prototype._drawDepthRuler = function () {
+    var ctx = this.ctx;
+    var x = 12;
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+    ctx.fillStyle = 'rgba(255,255,255,0.42)';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    var deepest = this.game.river.maxDepth || 1;
+    for (var d = 0; d <= deepest; d += 0.5) {
+      var y = this.sy(-d);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 14, y);
+      ctx.stroke();
+      if (d > 0) ctx.fillText(d.toFixed(1) + ' m', x + 18, y + 3);
+    }
+  };
+
+  EN.Renderer = Renderer;
+})(window.EN = window.EN || {});
+
+/*
+ * main.js — wiring: input, the frame loop, and the HUD.
+ */
+(function (EN) {
+  'use strict';
+
+  var clamp = EN.clamp;
+  var canvas = document.getElementById('scene');
+  var game = new EN.Game();
+  var renderer = new EN.Renderer(canvas, game);
+  EN.game = game;   // handy from the console when you want to poke at the sim
+
+  var el = {};
+  ['phase', 'log', 'drift-section', 'contact-val', 'contact-fill', 'contact-band', 'depth-val', 'depth-fill',
+   'drag-val', 'drag-fill', 'fight-section', 'tension-val', 'tension-fill', 'tension-band',
+   'stamina-val', 'stamina-fill', 'preset', 'bead', 'bead-val', 'leader', 'leader-val',
+   'tippet', 'dropper', 'lies', 'reset', 's-drifts', 's-takes', 's-hooked', 's-landed',
+   's-best', 's-zone', 's-dead', 's-last', 'touch-controls', 'btn-action'
+  ].forEach(function (id) { el[id] = document.getElementById(id); });
+
+  // ---- input ---------------------------------------------------------------
+
+  // On a touchscreen a tap cannot mean both "put the rod here" and "strike" —
+  // you would set the hook every time you moved the rod. So on touch the canvas
+  // only aims the rod and a button does the casting, striking and gathering.
+  var touchMode = false;
+  try {
+    touchMode = window.matchMedia('(pointer: coarse)').matches;
+  } catch (e) { /* older browsers: fall back to detecting a touch pointer */ }
+
+  function setTouchMode(on) {
+    if (on === touchMode) return;
+    touchMode = on;
+    el['touch-controls'].hidden = !on;
+  }
+
+  function doAction() {
+    if (game.phase === 'fighting') game.gathering = true;
+    else game.strike();
+  }
+
+  function pointerToWorld(ev) {
+    var rect = canvas.getBoundingClientRect();
+    return renderer.toWorld(ev.clientX - rect.left, ev.clientY - rect.top);
+  }
+
+  canvas.addEventListener('pointermove', function (ev) {
+    if (ev.pointerType === 'touch' && ev.buttons === 0) return;
+    var w = pointerToWorld(ev);
+    game.setTipTarget(w.x, w.y);
+  });
+
+  canvas.addEventListener('pointerdown', function (ev) {
+    ev.preventDefault();
+    if (ev.pointerType === 'touch' || ev.pointerType === 'pen') setTouchMode(true);
+    try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* not fatal */ }
+    var w = pointerToWorld(ev);
+    game.setTipTarget(w.x, w.y);
+    if (!touchMode) doAction();
+  });
+
+  function releasePointer() { game.gathering = false; }
+  canvas.addEventListener('pointerup', releasePointer);
+  canvas.addEventListener('pointercancel', releasePointer);
+  window.addEventListener('blur', releasePointer);
+  canvas.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+
+  window.addEventListener('keydown', function (ev) {
+    if (ev.target && /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName)) return;
+    switch (ev.key) {
+      case ' ':
+        ev.preventDefault();
+        if (game.phase === 'fighting') game.gathering = true; else game.strike();
+        break;
+      case 'r': case 'R':
+        if (game.phase !== 'fighting') { game.resetDrift(); game.cast(); }
+        break;
+      case 'l': case 'L':
+        el.lies.checked = !el.lies.checked;
+        game.showLies = el.lies.checked;
+        break;
+      case 'p': case 'P':
+        game.paused = !game.paused;
+        break;
+      case '1': setPreset('riffle'); break;
+      case '2': setPreset('pocket'); break;
+      case '3': setPreset('tailout'); break;
+    }
+  });
+
+  window.addEventListener('keyup', function (ev) {
+    if (ev.key === ' ') game.gathering = false;
+  });
+
+  el['btn-action'].addEventListener('pointerdown', function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    doAction();
+  });
+  el['btn-action'].addEventListener('pointerup', releasePointer);
+  el['btn-action'].addEventListener('pointercancel', releasePointer);
+  el['btn-action'].addEventListener('pointerleave', releasePointer);
+  el['btn-action'].addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+
+  el['touch-controls'].hidden = !touchMode;
+
+  window.addEventListener('resize', function () { renderer.resize(); });
+  window.addEventListener('orientationchange', function () {
+    setTimeout(function () { renderer.resize(); }, 120);
+  });
+
+  // ---- controls ------------------------------------------------------------
+
+  function setPreset(key) {
+    el.preset.value = key;
+    game.setPreset(key);
+  }
+
+  el.preset.addEventListener('change', function () { game.setPreset(el.preset.value); });
+
+  el.bead.addEventListener('input', function () {
+    var mm = parseFloat(el.bead.value);
+    el['bead-val'].textContent = mm.toFixed(1) + ' mm';
+    game.setRig({ pointBead: mm, dropperBead: Math.max(2.0, mm - 1) });
+  });
+
+  el.leader.addEventListener('input', function () {
+    var m = parseFloat(el.leader.value);
+    el['leader-val'].textContent = m.toFixed(1) + ' m';
+    game.setRig({ leaderLength: m });
+  });
+
+  el.tippet.addEventListener('change', function () {
+    game.setRig({ tippet: parseFloat(el.tippet.value) });
+  });
+
+  el.dropper.addEventListener('change', function () {
+    game.setRig({ useDropper: el.dropper.checked });
+  });
+
+  el.lies.addEventListener('change', function () { game.showLies = el.lies.checked; });
+
+  el.reset.addEventListener('click', function () {
+    var keep = game.rig.config;
+    game = new EN.Game();
+    game.setRig(keep);
+    game.setPreset(el.preset.value);
+    game.showLies = el.lies.checked;
+    renderer.game = game;
+    EN.game = game;
+  });
+
+  // ---- HUD -----------------------------------------------------------------
+
+  var PHASE_TEXT = {
+    ready: 'Ready — <strong>click</strong> or <kbd>Space</kbd> to tuck a cast upstream',
+    drifting: 'Drifting — lead the sighter, strike at anything odd',
+    fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it'
+  };
+
+  var PHASE_TEXT_TOUCH = {
+    ready: 'Drag to hold the rod tip — tap <strong>CAST</strong>',
+    drifting: 'Drifting — lead the sighter, tap <strong>STRIKE</strong> at anything odd',
+    fighting: 'Fish on — <strong>hold GATHER</strong> to take line, let go to give it'
+  };
+
+  var ACTION_LABEL = { ready: 'CAST', drifting: 'STRIKE', fighting: 'GATHER' };
+
+  function setFill(node, pct, color) {
+    node.style.width = clamp(pct, 0, 100).toFixed(1) + '%';
+    node.style.background = color;
+  }
+
+  var logSig = '';
+
+  function updateHud() {
+    var hud = game.hudState();
+    var s = game.stats;
+
+    el.phase.innerHTML = game.paused
+      ? 'Paused — <kbd>P</kbd> to resume'
+      : (touchMode ? PHASE_TEXT_TOUCH : PHASE_TEXT)[game.phase];
+    if (touchMode) el['btn-action'].textContent = ACTION_LABEL[game.phase] || 'CAST';
+
+    // Contact: the band is where a take actually reaches you.
+    var c = hud.contact * 100;
+    el['contact-val'].textContent = c.toFixed(0) + '%';
+    el['contact-band'].style.left = '82%';
+    el['contact-band'].style.width = '17%';
+    setFill(el['contact-fill'], c,
+      c < 78 ? '#5b7f8c' : (c > 99.4 ? '#ef6b5e' : '#6fd18a'));
+
+    if (hud.depth === null) {
+      el['depth-val'].textContent = 'in the air';
+      setFill(el['depth-fill'], 0, '#5b7f8c');
+    } else {
+      el['depth-val'].textContent = hud.depth.toFixed(2) + ' m  ·  '
+        + hud.totalDepth.toFixed(2) + ' m deep';
+      setFill(el['depth-fill'], (1 - clamp(hud.depth / 0.7, 0, 1)) * 100,
+        hud.depth < 0.30 ? '#6fd18a' : (hud.depth < 0.5 ? '#ffb03a' : '#ef6b5e'));
+    }
+
+    var drag = Math.abs(hud.drag);
+    el['drag-val'].textContent = (hud.drag >= 0 ? '+' : '') + hud.drag.toFixed(2) + ' m/s';
+    setFill(el['drag-fill'], clamp(drag / 0.5, 0, 1) * 100,
+      drag < 0.14 ? '#6fd18a' : (drag < 0.3 ? '#ffb03a' : '#ef6b5e'));
+
+    var fighting = game.phase === 'fighting';
+    el['fight-section'].hidden = !fighting;
+    el['drift-section'].classList.toggle('dim', fighting);
+    if (fighting) {
+      var maxLoad = 2.0;
+      var breakAt = game.tippetStrength() * 0.86;
+      var t = hud.tension / maxLoad * 100;
+      el['tension-band'].style.left = '8%';
+      el['tension-band'].style.width = Math.max(4, (breakAt / maxLoad * 100) - 8).toFixed(1) + '%';
+      el['tension-val'].textContent = hud.tension.toFixed(2);
+      setFill(el['tension-fill'], t,
+        hud.tension > breakAt ? '#ef6b5e' : (hud.tension < 0.08 ? '#5b7f8c' : '#6fd18a'));
+      el['stamina-val'].textContent = Math.round(hud.stamina * 100) + '%';
+      setFill(el['stamina-fill'], hud.stamina * 100, '#ffb03a');
+    }
+
+    el['s-drifts'].textContent = s.drifts;
+    el['s-takes'].textContent = s.takes;
+    el['s-hooked'].textContent = s.hooked;
+    el['s-landed'].textContent = s.landed;
+    el['s-best'].textContent = s.bestFish ? s.bestFish + ' cm' : '—';
+    el['s-zone'].textContent = s.drifts ? Math.round(s.zonePct) + '%' : '—';
+    el['s-dead'].textContent = s.drifts ? Math.round(s.deadPct) + '%' : '—';
+    el['s-last'].textContent = game.lastDrift ? game.lastDrift.score + ' / 100' : '—';
+
+    var sig = game.messages.map(function (m) { return m.kind + m.text; }).join('|');
+    if (sig !== logSig) {
+      logSig = sig;
+      el.log.innerHTML = '';
+      game.messages.forEach(function (m) {
+        var div = document.createElement('div');
+        div.className = 'msg ' + m.kind;
+        div.textContent = m.text;
+        el.log.appendChild(div);
+      });
+    }
+  }
+
+  // ---- loop ----------------------------------------------------------------
+
+  var last = performance.now();
+  var hudTimer = 0;
+
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+
+    game.update(dt);
+    if (!game.paused) renderer.update(dt);
+    renderer.draw();
+
+    hudTimer += dt;
+    if (hudTimer > 1 / 30) { hudTimer = 0; updateHud(); }
+
+    requestAnimationFrame(frame);
+  }
+
+  renderer.resize();
+  updateHud();
+  requestAnimationFrame(frame);
+})(window.EN);
+
+</script>

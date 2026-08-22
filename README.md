@@ -14,14 +14,27 @@ eat and spit while your sighter never twitches.
 
 ## Running it
 
-Open `index.html` in any modern browser. That is the whole thing — it works from
-`file://`.
+**On a computer:** open `index.html`. That is the whole thing — it works straight
+off the filesystem.
+
+**On a phone or tablet:** use `dist/euro-nymphing-simulator.html` instead. It is
+the same simulator with the stylesheet and all six scripts inlined into one file.
+Android and iOS open downloaded files through a `content://` (or equivalent)
+provider that cannot resolve relative paths to sibling files, so the multi-file
+version loads as bare unstyled HTML with no canvas. The bundle has no external
+references at all and works anywhere.
 
 If you would rather serve it:
 
 ```sh
 python3 -m http.server 8000
 # then http://localhost:8000
+```
+
+Rebuild the bundle after changing anything in `src/` or `index.html`:
+
+```sh
+node tools/build-single-file.js
 ```
 
 ## Playing it
@@ -36,6 +49,11 @@ python3 -m http.server 8000
 | Learning mode (reveal lies and fish) | <kbd>L</kbd> |
 | Pause | <kbd>P</kbd> |
 | Switch beat | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> |
+
+On a touchscreen a tap cannot mean both "put the rod here" and "strike" — you
+would set the hook every time you moved the rod. So on touch devices the water
+only aims the rod and a round button handles casting, striking and gathering
+line. This switches on automatically.
 
 The loop: tuck a cast upstream, lead the sighter downstream at the speed of the
 water, keep the contact meter in its band, and lift at anything the sighter does
@@ -91,6 +109,8 @@ at the rod tip, which is why you have to drop the rod at the end.
 
 ```
 index.html        markup, HUD, controls
+dist/             generated single-file bundle (do not edit by hand)
+tools/            the bundler
 src/style.css     styling
 src/river.js      bed geometry, velocity field, the three beats
 src/rig.js        leader physics (PBD rope, drag, bed collision)

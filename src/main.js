@@ -15,10 +15,29 @@
    'drag-val', 'drag-fill', 'fight-section', 'tension-val', 'tension-fill', 'tension-band',
    'stamina-val', 'stamina-fill', 'preset', 'bead', 'bead-val', 'leader', 'leader-val',
    'tippet', 'dropper', 'lies', 'reset', 's-drifts', 's-takes', 's-hooked', 's-landed',
-   's-best', 's-zone', 's-dead', 's-last'
+   's-best', 's-zone', 's-dead', 's-last', 'touch-controls', 'btn-action'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
+
+  // On a touchscreen a tap cannot mean both "put the rod here" and "strike" —
+  // you would set the hook every time you moved the rod. So on touch the canvas
+  // only aims the rod and a button does the casting, striking and gathering.
+  var touchMode = false;
+  try {
+    touchMode = window.matchMedia('(pointer: coarse)').matches;
+  } catch (e) { /* older browsers: fall back to detecting a touch pointer */ }
+
+  function setTouchMode(on) {
+    if (on === touchMode) return;
+    touchMode = on;
+    el['touch-controls'].hidden = !on;
+  }
+
+  function doAction() {
+    if (game.phase === 'fighting') game.gathering = true;
+    else game.strike();
+  }
 
   function pointerToWorld(ev) {
     var rect = canvas.getBoundingClientRect();
@@ -26,17 +45,18 @@
   }
 
   canvas.addEventListener('pointermove', function (ev) {
+    if (ev.pointerType === 'touch' && ev.buttons === 0) return;
     var w = pointerToWorld(ev);
     game.setTipTarget(w.x, w.y);
   });
 
   canvas.addEventListener('pointerdown', function (ev) {
     ev.preventDefault();
-    canvas.setPointerCapture(ev.pointerId);
+    if (ev.pointerType === 'touch' || ev.pointerType === 'pen') setTouchMode(true);
+    try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* not fatal */ }
     var w = pointerToWorld(ev);
     game.setTipTarget(w.x, w.y);
-    if (game.phase === 'fighting') game.gathering = true;
-    else game.strike();
+    if (!touchMode) doAction();
   });
 
   function releasePointer() { game.gathering = false; }
@@ -72,7 +92,22 @@
     if (ev.key === ' ') game.gathering = false;
   });
 
+  el['btn-action'].addEventListener('pointerdown', function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    doAction();
+  });
+  el['btn-action'].addEventListener('pointerup', releasePointer);
+  el['btn-action'].addEventListener('pointercancel', releasePointer);
+  el['btn-action'].addEventListener('pointerleave', releasePointer);
+  el['btn-action'].addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+
+  el['touch-controls'].hidden = !touchMode;
+
   window.addEventListener('resize', function () { renderer.resize(); });
+  window.addEventListener('orientationchange', function () {
+    setTimeout(function () { renderer.resize(); }, 120);
+  });
 
   // ---- controls ------------------------------------------------------------
 
@@ -123,6 +158,14 @@
     fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it'
   };
 
+  var PHASE_TEXT_TOUCH = {
+    ready: 'Drag to hold the rod tip — tap <strong>CAST</strong>',
+    drifting: 'Drifting — lead the sighter, tap <strong>STRIKE</strong> at anything odd',
+    fighting: 'Fish on — <strong>hold GATHER</strong> to take line, let go to give it'
+  };
+
+  var ACTION_LABEL = { ready: 'CAST', drifting: 'STRIKE', fighting: 'GATHER' };
+
   function setFill(node, pct, color) {
     node.style.width = clamp(pct, 0, 100).toFixed(1) + '%';
     node.style.background = color;
@@ -134,7 +177,10 @@
     var hud = game.hudState();
     var s = game.stats;
 
-    el.phase.innerHTML = game.paused ? 'Paused — <kbd>P</kbd> to resume' : PHASE_TEXT[game.phase];
+    el.phase.innerHTML = game.paused
+      ? 'Paused — <kbd>P</kbd> to resume'
+      : (touchMode ? PHASE_TEXT_TOUCH : PHASE_TEXT)[game.phase];
+    if (touchMode) el['btn-action'].textContent = ACTION_LABEL[game.phase] || 'CAST';
 
     // Contact: the band is where a take actually reaches you.
     var c = hud.contact * 100;
