@@ -17,6 +17,14 @@ eat and spit while your sighter never twitches.
 **On a computer:** open `index.html`. That is the whole thing — it works straight
 off the filesystem.
 
+Hit ⤢ (or <kbd>F</kbd>) for full screen: the side panel gets out of the way, the
+river takes the whole window, and the instruments you actually fish by — contact,
+depth off the bed, drag, and tippet load while a fish is on — move to a compact
+strip along the top edge. On a phone it asks for native full screen and a
+landscape lock where the browser allows it, and falls back to filling the frame
+where it does not. Held sideways is the view this wants; held upright it pulls
+the camera in closer and says so.
+
 **On a phone or tablet:** use `dist/euro-nymphing-simulator.html` instead. It is
 the same simulator with the stylesheet and all six scripts inlined into one file.
 Android and iOS open downloaded files through a `content://` (or equivalent)
@@ -47,6 +55,7 @@ There are no cast or strike buttons. Everything is done with the rod.
 | Cast | sweep the rod: load back, drive upstream, stop |
 | Strike | sweep the rod tip up |
 | Gather line (while a fish is on) | hold the pointer button, or <kbd>Space</kbd> |
+| Full screen | the ⤢ button, or <kbd>F</kbd> |
 | Reset the rig under the tip | <kbd>R</kbd> |
 | Tuck cast (fallback) | <kbd>C</kbd> |
 | Learning mode (reveal lies and fish) | <kbd>L</kbd> |

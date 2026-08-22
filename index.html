@@ -13,8 +13,18 @@
   <div id="stage">
     <canvas id="scene"></canvas>
     <div id="overlay">
-      <div id="phase">Move the rod with the pointer — sweep it upstream to flick the flies out</div>
+      <div id="topbar">
+        <div id="hud-mini">
+          <div class="mini"><span>Contact</span><div class="track"><div class="fill" id="m-contact"></div></div><em id="m-contact-v">—</em></div>
+          <div class="mini"><span>Off bed</span><div class="track"><div class="fill" id="m-depth"></div></div><em id="m-depth-v">—</em></div>
+          <div class="mini"><span>Drag</span><div class="track"><div class="fill" id="m-drag"></div></div><em id="m-drag-v">—</em></div>
+          <div class="mini" id="m-fight" hidden><span>Tippet</span><div class="track"><div class="fill" id="m-tension"></div></div><em id="m-tension-v">—</em></div>
+        </div>
+        <div id="phase">Move the rod with the pointer — sweep it upstream to flick the flies out</div>
+        <button id="btn-full" type="button" title="Full screen (F)" aria-label="Full screen">⤢</button>
+      </div>
       <div id="log"></div>
+      <div id="rotate-hint" hidden>Turn your phone sideways for the full view</div>
     </div>
   </div>
 
@@ -131,7 +141,8 @@
       <p><b>Play it</b> by holding the pointer down to gather line and releasing to give it back. Watch the tippet load.</p>
       <p><b>On a phone or tablet:</b> drag to move the rod, flick up to set, and press and hold to gather line while you steer.</p>
       <p><kbd>R</kbd> drops the rig back under the tip if you tangle it or want to start again.</p>
-      <p>Keys: <kbd>Space</kbd> gather line · <kbd>R</kbd> reset the rig · <kbd>C</kbd> tuck cast (fallback) · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> beats</p>
+      <p>Keys: <kbd>Space</kbd> gather line · <kbd>R</kbd> reset the rig · <kbd>C</kbd> tuck cast (fallback) · <kbd>F</kbd> full screen · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> beats</p>
+      <p><b>Full screen</b> (<kbd>F</kbd>, or the ⤢ button) hides this panel and gives the river the whole screen, with the meters you need moved to the top edge. Best held sideways.</p>
     </details>
   </aside>
 </div>

@@ -31,8 +31,13 @@ html, body {
 
 #stage {
   position: relative;
-  flex: 1 1 auto;
+  /* basis 0, not auto: the canvas element carries an intrinsic size from its
+     width/height attributes, and with `auto` the stage would size itself to
+     whatever the last resize wrote — so leaving full screen left the panel
+     shoved off the bottom of the screen. */
+  flex: 1 1 0;
   min-width: 0;
+  min-height: 0;
 }
 
 #scene {
@@ -56,8 +61,87 @@ html, body {
   padding: 14px;
 }
 
+#topbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  /* Wrap rather than crush: on a narrow screen the phase cue drops to its own
+     line instead of being squeezed into a one-word column. */
+  flex-wrap: wrap;
+  padding-right: 42px;
+}
+
+#btn-full {
+  /* Out of the flex flow entirely so it can never be pushed off the edge. */
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  pointer-events: auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 8px;
+  background: rgba(10, 18, 22, 0.72);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#btn-full:hover { border-color: var(--accent); color: var(--accent); }
+body.immersive #btn-full { color: var(--accent); border-color: var(--accent); }
+
+/* Compact instruments for full-screen play, where the panel is gone. */
+#hud-mini {
+  display: none;
+  gap: 12px;
+  align-items: center;
+  background: rgba(10, 18, 22, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+body.immersive #hud-mini { display: flex; }
+
+/* An author `display` beats the UA rule for [hidden], so say it explicitly. */
+#hud-mini .mini[hidden] { display: none; }
+
+#hud-mini .mini {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+#hud-mini .mini .track { width: 54px; height: 5px; }
+#hud-mini .mini em {
+  font-style: normal;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: right;
+}
+
+#rotate-hint {
+  align-self: center;
+  margin-top: auto;
+  margin-bottom: 8px;
+  background: rgba(10, 18, 22, 0.85);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+body.immersive #panel { display: none; }
+
 #phase {
   align-self: center;
+  margin: 0 auto;
   background: rgba(10, 18, 22, 0.72);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -230,7 +314,10 @@ details summary {
 details p { margin: 0 0 8px; }
 details b { color: var(--text); font-weight: 600; }
 
-@media (max-width: 860px) {
+/* Stack only when the screen is genuinely tall and narrow. A phone held
+   sideways is short and wide — stacking there would leave the river a letterbox
+   slit, which is the opposite of what you want. */
+@media (max-width: 860px) and (orientation: portrait) {
   #app { flex-direction: column; }
   #panel { flex: 0 0 auto; max-height: 46%; border-left: none; border-top: 1px solid var(--line); }
   #log { max-width: 92%; }
@@ -239,6 +326,37 @@ details b { color: var(--text); font-weight: 600; }
   .msg { font-size: 11.5px; padding: 4px 8px; }
   #overlay { padding: 10px; }
   #phase { font-size: 12px; padding: 5px 12px; text-align: center; }
+  #btn-full { top: 10px; right: 10px; }
 }
 
 section.dim { opacity: 0.34; transition: opacity 180ms ease; }
+
+/* Phone held sideways: the panel has to give up room to the water. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #panel { flex: 0 0 232px; padding: 10px 12px; }
+  h1 { font-size: 14px; }
+  .sub { margin-bottom: 10px; font-size: 11px; }
+  section { margin-bottom: 12px; }
+  #overlay { padding: 8px; }
+  #phase { font-size: 11px; padding: 4px 10px; }
+  #btn-full { top: 8px; right: 8px; }
+  #log { max-width: 46%; }
+  #log .msg:nth-child(n + 3) { display: none; }
+  .msg { font-size: 11px; padding: 4px 8px; }
+}
+
+/* Short screens: tighten the instruments, but keep their labels — a bare
+   number with a bar next to it does not tell you what it is measuring. */
+@media (max-height: 430px) {
+  #hud-mini { gap: 8px; padding: 4px 8px; }
+  #hud-mini .mini { font-size: 10px; gap: 4px; }
+  #hud-mini .mini .track { width: 40px; }
+}
+
+/* Narrow screens are where labels genuinely have to go, smallest first. */
+@media (max-width: 620px) {
+  #hud-mini .mini span { display: none; }
+}
+@media (max-width: 440px) {
+  body.immersive #hud-mini .mini:nth-child(3) { display: none; }
+}

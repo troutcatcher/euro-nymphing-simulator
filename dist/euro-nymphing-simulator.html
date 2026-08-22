@@ -40,8 +40,13 @@ html, body {
 
 #stage {
   position: relative;
-  flex: 1 1 auto;
+  /* basis 0, not auto: the canvas element carries an intrinsic size from its
+     width/height attributes, and with `auto` the stage would size itself to
+     whatever the last resize wrote — so leaving full screen left the panel
+     shoved off the bottom of the screen. */
+  flex: 1 1 0;
   min-width: 0;
+  min-height: 0;
 }
 
 #scene {
@@ -65,8 +70,87 @@ html, body {
   padding: 14px;
 }
 
+#topbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  /* Wrap rather than crush: on a narrow screen the phase cue drops to its own
+     line instead of being squeezed into a one-word column. */
+  flex-wrap: wrap;
+  padding-right: 42px;
+}
+
+#btn-full {
+  /* Out of the flex flow entirely so it can never be pushed off the edge. */
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  pointer-events: auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 8px;
+  background: rgba(10, 18, 22, 0.72);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#btn-full:hover { border-color: var(--accent); color: var(--accent); }
+body.immersive #btn-full { color: var(--accent); border-color: var(--accent); }
+
+/* Compact instruments for full-screen play, where the panel is gone. */
+#hud-mini {
+  display: none;
+  gap: 12px;
+  align-items: center;
+  background: rgba(10, 18, 22, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+body.immersive #hud-mini { display: flex; }
+
+/* An author `display` beats the UA rule for [hidden], so say it explicitly. */
+#hud-mini .mini[hidden] { display: none; }
+
+#hud-mini .mini {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+#hud-mini .mini .track { width: 54px; height: 5px; }
+#hud-mini .mini em {
+  font-style: normal;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: right;
+}
+
+#rotate-hint {
+  align-self: center;
+  margin-top: auto;
+  margin-bottom: 8px;
+  background: rgba(10, 18, 22, 0.85);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--accent);
+}
+
+body.immersive #panel { display: none; }
+
 #phase {
   align-self: center;
+  margin: 0 auto;
   background: rgba(10, 18, 22, 0.72);
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -239,7 +323,10 @@ details summary {
 details p { margin: 0 0 8px; }
 details b { color: var(--text); font-weight: 600; }
 
-@media (max-width: 860px) {
+/* Stack only when the screen is genuinely tall and narrow. A phone held
+   sideways is short and wide — stacking there would leave the river a letterbox
+   slit, which is the opposite of what you want. */
+@media (max-width: 860px) and (orientation: portrait) {
   #app { flex-direction: column; }
   #panel { flex: 0 0 auto; max-height: 46%; border-left: none; border-top: 1px solid var(--line); }
   #log { max-width: 92%; }
@@ -248,9 +335,40 @@ details b { color: var(--text); font-weight: 600; }
   .msg { font-size: 11.5px; padding: 4px 8px; }
   #overlay { padding: 10px; }
   #phase { font-size: 12px; padding: 5px 12px; text-align: center; }
+  #btn-full { top: 10px; right: 10px; }
 }
 
 section.dim { opacity: 0.34; transition: opacity 180ms ease; }
+
+/* Phone held sideways: the panel has to give up room to the water. */
+@media (orientation: landscape) and (max-height: 560px) {
+  #panel { flex: 0 0 232px; padding: 10px 12px; }
+  h1 { font-size: 14px; }
+  .sub { margin-bottom: 10px; font-size: 11px; }
+  section { margin-bottom: 12px; }
+  #overlay { padding: 8px; }
+  #phase { font-size: 11px; padding: 4px 10px; }
+  #btn-full { top: 8px; right: 8px; }
+  #log { max-width: 46%; }
+  #log .msg:nth-child(n + 3) { display: none; }
+  .msg { font-size: 11px; padding: 4px 8px; }
+}
+
+/* Short screens: tighten the instruments, but keep their labels — a bare
+   number with a bar next to it does not tell you what it is measuring. */
+@media (max-height: 430px) {
+  #hud-mini { gap: 8px; padding: 4px 8px; }
+  #hud-mini .mini { font-size: 10px; gap: 4px; }
+  #hud-mini .mini .track { width: 40px; }
+}
+
+/* Narrow screens are where labels genuinely have to go, smallest first. */
+@media (max-width: 620px) {
+  #hud-mini .mini span { display: none; }
+}
+@media (max-width: 440px) {
+  body.immersive #hud-mini .mini:nth-child(3) { display: none; }
+}
 
 </style>
 </head>
@@ -259,8 +377,18 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   <div id="stage">
     <canvas id="scene"></canvas>
     <div id="overlay">
-      <div id="phase">Move the rod with the pointer — sweep it upstream to flick the flies out</div>
+      <div id="topbar">
+        <div id="hud-mini">
+          <div class="mini"><span>Contact</span><div class="track"><div class="fill" id="m-contact"></div></div><em id="m-contact-v">—</em></div>
+          <div class="mini"><span>Off bed</span><div class="track"><div class="fill" id="m-depth"></div></div><em id="m-depth-v">—</em></div>
+          <div class="mini"><span>Drag</span><div class="track"><div class="fill" id="m-drag"></div></div><em id="m-drag-v">—</em></div>
+          <div class="mini" id="m-fight" hidden><span>Tippet</span><div class="track"><div class="fill" id="m-tension"></div></div><em id="m-tension-v">—</em></div>
+        </div>
+        <div id="phase">Move the rod with the pointer — sweep it upstream to flick the flies out</div>
+        <button id="btn-full" type="button" title="Full screen (F)" aria-label="Full screen">⤢</button>
+      </div>
       <div id="log"></div>
+      <div id="rotate-hint" hidden>Turn your phone sideways for the full view</div>
     </div>
   </div>
 
@@ -377,7 +505,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       <p><b>Play it</b> by holding the pointer down to gather line and releasing to give it back. Watch the tippet load.</p>
       <p><b>On a phone or tablet:</b> drag to move the rod, flick up to set, and press and hold to gather line while you steer.</p>
       <p><kbd>R</kbd> drops the rig back under the tip if you tangle it or want to start again.</p>
-      <p>Keys: <kbd>Space</kbd> gather line · <kbd>R</kbd> reset the rig · <kbd>C</kbd> tuck cast (fallback) · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> beats</p>
+      <p>Keys: <kbd>Space</kbd> gather line · <kbd>R</kbd> reset the rig · <kbd>C</kbd> tuck cast (fallback) · <kbd>F</kbd> full screen · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> beats</p>
+      <p><b>Full screen</b> (<kbd>F</kbd>, or the ⤢ button) hides this panel and gives the river the whole screen, with the meters you need moved to the top edge. Best held sideways.</p>
     </details>
   </aside>
 </div>
@@ -1716,6 +1845,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.foam = [];
     this.t = 0;
     this.resize();
+    this._vis = this.visibleRange();
     this._seedParticles(260);
   }
 
@@ -1741,8 +1871,14 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   Renderer.prototype.fit = function () {
     var depth = (this.game.river.maxDepth || 1.0) + 0.35;
     var worldH = W.yTop + depth;
-    this.scale = Math.min(this.cw / VIEW_WIDTH, this.ch / worldH);
-    this.ox = this.cw * 0.5 - FOCUS_X * this.scale;
+    // A tall, narrow window (a phone held upright) gets a closer view so the rig
+    // is still big enough to read. Sideways is better, but this is usable. The
+    // focus slides downstream with the zoom to keep both ends of a drift in
+    // frame: where the flies land, and the angler they finish at.
+    var viewW = this.ch > this.cw ? VIEW_WIDTH * 0.82 : VIEW_WIDTH;
+    var focus = FOCUS_X + (VIEW_WIDTH - viewW) * 0.40;
+    this.scale = Math.min(this.cw / viewW, this.ch / worldH);
+    this.ox = this.cw * 0.5 - focus * this.scale;
     this.oy = (this.ch - worldH * this.scale) / 2;
     this._fitKey = this.game.river.preset.key;
   };
@@ -1753,11 +1889,21 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     return { x: (px - this.ox) / this.scale, y: W.yTop - (py - this.oy) / this.scale };
   };
 
+  /**
+   * The stretch of river actually on screen. A wide, short window (a phone held
+   * sideways in full screen) shows more river than the beat defines, so the bed
+   * has to be drawn to the edge of the glass rather than to a fixed world span.
+   */
+  Renderer.prototype.visibleRange = function () {
+    return { min: this.toWorld(0, 0).x, max: this.toWorld(this.cw, 0).x };
+  };
+
   Renderer.prototype._seedParticles = function (n) {
+    var v = this.visibleRange();
     this.particles.length = 0;
     for (var i = 0; i < n; i++) {
       this.particles.push({
-        x: W.xMin + Math.random() * (W.xMax - W.xMin),
+        x: v.min + Math.random() * (v.max - v.min),
         y: -Math.random() * 1.6,
         len: 0.06 + Math.random() * 0.16,
         a: 0.05 + Math.random() * 0.18
@@ -1769,13 +1915,14 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.t += dt;
     var river = this.game.river;
     if (this._fitKey !== river.preset.key) this.fit();
+    this._vis = this.visibleRange();
     for (var i = 0; i < this.particles.length; i++) {
       var p = this.particles[i];
       var bed = river.bedY(p.x);
       if (p.y < bed) p.y = bed + 0.02;
       p.x += river.speedAt(p.x, p.y) * dt;
-      if (p.x > W.xMax) {
-        p.x = W.xMin - Math.random() * 0.4;
+      if (p.x > this._vis.max) {
+        p.x = this._vis.min - Math.random() * 0.4;
         p.y = -Math.random() * Math.max(0.15, river.depth(p.x) * 0.98);
       }
     }
@@ -1866,12 +2013,14 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   Renderer.prototype._drawBed = function () {
     var ctx = this.ctx;
     var river = this.game.river;
+    var v = this.visibleRange();
+    var x0 = v.min - 0.3, x1 = v.max + 0.3;
     ctx.beginPath();
-    ctx.moveTo(this.sx(W.xMin - 0.5), this.ch);
-    for (var x = W.xMin - 0.5; x <= W.xMax + 0.5; x += 0.08) {
+    ctx.moveTo(this.sx(x0), this.ch);
+    for (var x = x0; x <= x1; x += 0.08) {
       ctx.lineTo(this.sx(x), this.sy(river.bedY(x)));
     }
-    ctx.lineTo(this.sx(W.xMax + 0.5), this.ch);
+    ctx.lineTo(this.sx(x1), this.ch);
     ctx.closePath();
     var g = ctx.createLinearGradient(0, this.sy(-0.3), 0, this.ch);
     g.addColorStop(0, '#3b3a30');
@@ -1883,7 +2032,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     ctx.save();
     ctx.clip();
     for (var i = 0; i < 190; i++) {
-      var rx = W.xMin + ((i * 0.6180339887) % 1) * (W.xMax - W.xMin);
+      var rx = x0 + ((i * 0.6180339887) % 1) * (x1 - x0);
       var depthOffset = ((i * 0.2794) % 1) * 0.34;
       var ry = river.bedY(rx) - depthOffset;
       var rr = (0.03 + ((i * 0.4142) % 1) * 0.06) * this.scale;
@@ -2224,7 +2373,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
    'stamina-val', 'stamina-fill', 'preset', 'bead', 'bead-val', 'leader', 'leader-val',
    'tippet', 'dropper', 'lies', 'reset', 's-drifts', 's-takes', 's-hooked', 's-landed',
    's-best', 's-zone', 's-dead', 's-last',
-   'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill'
+   'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill',
+   'btn-full', 'hud-mini', 'rotate-hint', 'm-contact', 'm-contact-v', 'm-depth',
+   'm-depth-v', 'm-drag', 'm-drag-v', 'm-fight', 'm-tension', 'm-tension-v'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
@@ -2284,6 +2435,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       case 'p': case 'P':
         game.paused = !game.paused;
         break;
+      case 'f': case 'F':
+        toggleFullscreen();
+        break;
       case '1': setPreset('riffle'); break;
       case '2': setPreset('pocket'); break;
       case '3': setPreset('tailout'); break;
@@ -2293,6 +2447,84 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   window.addEventListener('keyup', function (ev) {
     if (ev.key === ' ') game.gathering = false;
   });
+
+  // ---- full screen ---------------------------------------------------------
+
+  // Immersive mode is its own thing: it hides the panel and moves the meters to
+  // the top edge. Native fullscreen is requested on top of that when the
+  // browser allows it — inside an embedded frame it often does not, and the
+  // mode still has to work.
+  var immersive = false;
+  var wentFullscreen = false;
+
+  function fullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+
+  function lockLandscape() {
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        var r = screen.orientation.lock('landscape');
+        if (r && r.catch) r.catch(function () { /* desktop and iOS decline */ });
+      }
+    } catch (e) { /* not supported */ }
+  }
+
+  function setImmersive(on) {
+    immersive = on;
+    document.body.classList.toggle('immersive', on);
+    // The canvas box changes size, so refit on the next frame.
+    requestAnimationFrame(function () { renderer.resize(); });
+    setTimeout(function () { renderer.resize(); }, 160);
+  }
+
+  function toggleFullscreen() {
+    if (immersive) {
+      setImmersive(false);
+      if (fullscreenElement()) {
+        var exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) { try { exit.call(document); } catch (e) { /* ignore */ } }
+      }
+      wentFullscreen = false;
+      try {
+        if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+      } catch (e) { /* ignore */ }
+      return;
+    }
+
+    setImmersive(true);
+    var node = document.documentElement;
+    var req = node.requestFullscreen || node.webkitRequestFullscreen;
+    if (!req) { lockLandscape(); return; }
+    try {
+      var p = req.call(node);
+      if (p && p.then) {
+        p.then(function () { wentFullscreen = true; lockLandscape(); })
+         .catch(function () { /* embedded frames may refuse; immersive still applies */ });
+      } else {
+        wentFullscreen = true;
+        lockLandscape();
+      }
+    } catch (e) { /* immersive still applies */ }
+  }
+
+  el['btn-full'].addEventListener('click', function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    toggleFullscreen();
+  });
+
+  function onFullscreenChange() {
+    // Leaving fullscreen by the browser's own gesture should leave the mode too.
+    if (wentFullscreen && !fullscreenElement()) {
+      wentFullscreen = false;
+      setImmersive(false);
+    } else {
+      renderer.resize();
+    }
+  }
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 
   window.addEventListener('resize', function () { renderer.resize(); });
   window.addEventListener('orientationchange', function () {
@@ -2408,8 +2640,28 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     setFill(el['drag-fill'], clamp(drag / 0.5, 0, 1) * 100,
       drag < 0.14 ? '#6fd18a' : (drag < 0.3 ? '#ffb03a' : '#ef6b5e'));
 
+    if (immersive) {
+      el['m-contact'].style.width = clamp(c, 0, 100).toFixed(1) + '%';
+      el['m-contact'].style.background = el['contact-fill'].style.background;
+      el['m-contact-v'].textContent = c.toFixed(0) + '%';
+
+      el['m-depth'].style.width = el['depth-fill'].style.width;
+      el['m-depth'].style.background = el['depth-fill'].style.background;
+      el['m-depth-v'].textContent = hud.depth === null ? 'air' : hud.depth.toFixed(2) + 'm';
+
+      el['m-drag'].style.width = el['drag-fill'].style.width;
+      el['m-drag'].style.background = el['drag-fill'].style.background;
+      el['m-drag-v'].textContent = hud.drag.toFixed(2);
+    }
+
+    // Sideways is the view this wants; say so once the screen is small enough
+    // for it to matter.
+    el['rotate-hint'].hidden = !(immersive && window.innerHeight > window.innerWidth
+                                 && window.innerWidth < 620);
+
     var fighting = game.phase === 'fighting';
     el['fight-section'].hidden = !fighting;
+    el['m-fight'].hidden = !fighting;
     el['drift-section'].classList.toggle('dim', fighting || !game.driftActive);
     if (fighting) {
       var maxLoad = 2.0;
@@ -2422,6 +2674,12 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
         hud.tension > breakAt ? '#ef6b5e' : (hud.tension < 0.08 ? '#5b7f8c' : '#6fd18a'));
       el['stamina-val'].textContent = Math.round(hud.stamina * 100) + '%';
       setFill(el['stamina-fill'], hud.stamina * 100, '#ffb03a');
+
+      if (immersive) {
+        el['m-tension'].style.width = el['tension-fill'].style.width;
+        el['m-tension'].style.background = el['tension-fill'].style.background;
+        el['m-tension-v'].textContent = hud.tension.toFixed(2);
+      }
     }
 
     // Show how close the last rod movement came to registering as a set.

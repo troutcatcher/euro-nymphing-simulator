@@ -16,7 +16,9 @@
    'stamina-val', 'stamina-fill', 'preset', 'bead', 'bead-val', 'leader', 'leader-val',
    'tippet', 'dropper', 'lies', 'reset', 's-drifts', 's-takes', 's-hooked', 's-landed',
    's-best', 's-zone', 's-dead', 's-last',
-   'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill'
+   'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill',
+   'btn-full', 'hud-mini', 'rotate-hint', 'm-contact', 'm-contact-v', 'm-depth',
+   'm-depth-v', 'm-drag', 'm-drag-v', 'm-fight', 'm-tension', 'm-tension-v'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
@@ -76,6 +78,9 @@
       case 'p': case 'P':
         game.paused = !game.paused;
         break;
+      case 'f': case 'F':
+        toggleFullscreen();
+        break;
       case '1': setPreset('riffle'); break;
       case '2': setPreset('pocket'); break;
       case '3': setPreset('tailout'); break;
@@ -85,6 +90,84 @@
   window.addEventListener('keyup', function (ev) {
     if (ev.key === ' ') game.gathering = false;
   });
+
+  // ---- full screen ---------------------------------------------------------
+
+  // Immersive mode is its own thing: it hides the panel and moves the meters to
+  // the top edge. Native fullscreen is requested on top of that when the
+  // browser allows it — inside an embedded frame it often does not, and the
+  // mode still has to work.
+  var immersive = false;
+  var wentFullscreen = false;
+
+  function fullscreenElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+
+  function lockLandscape() {
+    try {
+      if (screen.orientation && screen.orientation.lock) {
+        var r = screen.orientation.lock('landscape');
+        if (r && r.catch) r.catch(function () { /* desktop and iOS decline */ });
+      }
+    } catch (e) { /* not supported */ }
+  }
+
+  function setImmersive(on) {
+    immersive = on;
+    document.body.classList.toggle('immersive', on);
+    // The canvas box changes size, so refit on the next frame.
+    requestAnimationFrame(function () { renderer.resize(); });
+    setTimeout(function () { renderer.resize(); }, 160);
+  }
+
+  function toggleFullscreen() {
+    if (immersive) {
+      setImmersive(false);
+      if (fullscreenElement()) {
+        var exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) { try { exit.call(document); } catch (e) { /* ignore */ } }
+      }
+      wentFullscreen = false;
+      try {
+        if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+      } catch (e) { /* ignore */ }
+      return;
+    }
+
+    setImmersive(true);
+    var node = document.documentElement;
+    var req = node.requestFullscreen || node.webkitRequestFullscreen;
+    if (!req) { lockLandscape(); return; }
+    try {
+      var p = req.call(node);
+      if (p && p.then) {
+        p.then(function () { wentFullscreen = true; lockLandscape(); })
+         .catch(function () { /* embedded frames may refuse; immersive still applies */ });
+      } else {
+        wentFullscreen = true;
+        lockLandscape();
+      }
+    } catch (e) { /* immersive still applies */ }
+  }
+
+  el['btn-full'].addEventListener('click', function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    toggleFullscreen();
+  });
+
+  function onFullscreenChange() {
+    // Leaving fullscreen by the browser's own gesture should leave the mode too.
+    if (wentFullscreen && !fullscreenElement()) {
+      wentFullscreen = false;
+      setImmersive(false);
+    } else {
+      renderer.resize();
+    }
+  }
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
 
   window.addEventListener('resize', function () { renderer.resize(); });
   window.addEventListener('orientationchange', function () {
@@ -200,8 +283,28 @@
     setFill(el['drag-fill'], clamp(drag / 0.5, 0, 1) * 100,
       drag < 0.14 ? '#6fd18a' : (drag < 0.3 ? '#ffb03a' : '#ef6b5e'));
 
+    if (immersive) {
+      el['m-contact'].style.width = clamp(c, 0, 100).toFixed(1) + '%';
+      el['m-contact'].style.background = el['contact-fill'].style.background;
+      el['m-contact-v'].textContent = c.toFixed(0) + '%';
+
+      el['m-depth'].style.width = el['depth-fill'].style.width;
+      el['m-depth'].style.background = el['depth-fill'].style.background;
+      el['m-depth-v'].textContent = hud.depth === null ? 'air' : hud.depth.toFixed(2) + 'm';
+
+      el['m-drag'].style.width = el['drag-fill'].style.width;
+      el['m-drag'].style.background = el['drag-fill'].style.background;
+      el['m-drag-v'].textContent = hud.drag.toFixed(2);
+    }
+
+    // Sideways is the view this wants; say so once the screen is small enough
+    // for it to matter.
+    el['rotate-hint'].hidden = !(immersive && window.innerHeight > window.innerWidth
+                                 && window.innerWidth < 620);
+
     var fighting = game.phase === 'fighting';
     el['fight-section'].hidden = !fighting;
+    el['m-fight'].hidden = !fighting;
     el['drift-section'].classList.toggle('dim', fighting || !game.driftActive);
     if (fighting) {
       var maxLoad = 2.0;
@@ -214,6 +317,12 @@
         hud.tension > breakAt ? '#ef6b5e' : (hud.tension < 0.08 ? '#5b7f8c' : '#6fd18a'));
       el['stamina-val'].textContent = Math.round(hud.stamina * 100) + '%';
       setFill(el['stamina-fill'], hud.stamina * 100, '#ffb03a');
+
+      if (immersive) {
+        el['m-tension'].style.width = el['tension-fill'].style.width;
+        el['m-tension'].style.background = el['tension-fill'].style.background;
+        el['m-tension-v'].textContent = hud.tension.toFixed(2);
+      }
     }
 
     // Show how close the last rod movement came to registering as a set.

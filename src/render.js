@@ -17,6 +17,7 @@
     this.foam = [];
     this.t = 0;
     this.resize();
+    this._vis = this.visibleRange();
     this._seedParticles(260);
   }
 
@@ -42,8 +43,14 @@
   Renderer.prototype.fit = function () {
     var depth = (this.game.river.maxDepth || 1.0) + 0.35;
     var worldH = W.yTop + depth;
-    this.scale = Math.min(this.cw / VIEW_WIDTH, this.ch / worldH);
-    this.ox = this.cw * 0.5 - FOCUS_X * this.scale;
+    // A tall, narrow window (a phone held upright) gets a closer view so the rig
+    // is still big enough to read. Sideways is better, but this is usable. The
+    // focus slides downstream with the zoom to keep both ends of a drift in
+    // frame: where the flies land, and the angler they finish at.
+    var viewW = this.ch > this.cw ? VIEW_WIDTH * 0.82 : VIEW_WIDTH;
+    var focus = FOCUS_X + (VIEW_WIDTH - viewW) * 0.40;
+    this.scale = Math.min(this.cw / viewW, this.ch / worldH);
+    this.ox = this.cw * 0.5 - focus * this.scale;
     this.oy = (this.ch - worldH * this.scale) / 2;
     this._fitKey = this.game.river.preset.key;
   };
@@ -54,11 +61,21 @@
     return { x: (px - this.ox) / this.scale, y: W.yTop - (py - this.oy) / this.scale };
   };
 
+  /**
+   * The stretch of river actually on screen. A wide, short window (a phone held
+   * sideways in full screen) shows more river than the beat defines, so the bed
+   * has to be drawn to the edge of the glass rather than to a fixed world span.
+   */
+  Renderer.prototype.visibleRange = function () {
+    return { min: this.toWorld(0, 0).x, max: this.toWorld(this.cw, 0).x };
+  };
+
   Renderer.prototype._seedParticles = function (n) {
+    var v = this.visibleRange();
     this.particles.length = 0;
     for (var i = 0; i < n; i++) {
       this.particles.push({
-        x: W.xMin + Math.random() * (W.xMax - W.xMin),
+        x: v.min + Math.random() * (v.max - v.min),
         y: -Math.random() * 1.6,
         len: 0.06 + Math.random() * 0.16,
         a: 0.05 + Math.random() * 0.18
@@ -70,13 +87,14 @@
     this.t += dt;
     var river = this.game.river;
     if (this._fitKey !== river.preset.key) this.fit();
+    this._vis = this.visibleRange();
     for (var i = 0; i < this.particles.length; i++) {
       var p = this.particles[i];
       var bed = river.bedY(p.x);
       if (p.y < bed) p.y = bed + 0.02;
       p.x += river.speedAt(p.x, p.y) * dt;
-      if (p.x > W.xMax) {
-        p.x = W.xMin - Math.random() * 0.4;
+      if (p.x > this._vis.max) {
+        p.x = this._vis.min - Math.random() * 0.4;
         p.y = -Math.random() * Math.max(0.15, river.depth(p.x) * 0.98);
       }
     }
@@ -167,12 +185,14 @@
   Renderer.prototype._drawBed = function () {
     var ctx = this.ctx;
     var river = this.game.river;
+    var v = this.visibleRange();
+    var x0 = v.min - 0.3, x1 = v.max + 0.3;
     ctx.beginPath();
-    ctx.moveTo(this.sx(W.xMin - 0.5), this.ch);
-    for (var x = W.xMin - 0.5; x <= W.xMax + 0.5; x += 0.08) {
+    ctx.moveTo(this.sx(x0), this.ch);
+    for (var x = x0; x <= x1; x += 0.08) {
       ctx.lineTo(this.sx(x), this.sy(river.bedY(x)));
     }
-    ctx.lineTo(this.sx(W.xMax + 0.5), this.ch);
+    ctx.lineTo(this.sx(x1), this.ch);
     ctx.closePath();
     var g = ctx.createLinearGradient(0, this.sy(-0.3), 0, this.ch);
     g.addColorStop(0, '#3b3a30');
@@ -184,7 +204,7 @@
     ctx.save();
     ctx.clip();
     for (var i = 0; i < 190; i++) {
-      var rx = W.xMin + ((i * 0.6180339887) % 1) * (W.xMax - W.xMin);
+      var rx = x0 + ((i * 0.6180339887) % 1) * (x1 - x0);
       var depthOffset = ((i * 0.2794) % 1) * 0.34;
       var ry = river.bedY(rx) - depthOffset;
       var rr = (0.03 + ((i * 0.4142) % 1) * 0.06) * this.scale;
