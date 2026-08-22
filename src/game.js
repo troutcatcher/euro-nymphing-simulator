@@ -183,10 +183,13 @@
         this.rig.anchor = null;
         this.stats.missed++;
         this.say('Lifted into it and came up empty.', 'bad');
-        if (this.rig.contact < 0.8) {
+        var late = fish.holdTime / Math.max(0.1, fish.holdWindow);
+        if (late > 0.55 && this.rig.contact >= 0.8) {
+          this.coach('A shade slow. Set the moment the sighter does anything odd — do not wait to be sure.');
+        } else if (this.rig.contact < 0.8) {
           this.coach('There was too much slack to drive the hook. Keep the sighter just taut.');
         } else {
-          this.coach('Close. A shorter, faster lift downstream sticks more of those.');
+          this.coach('Close. A shorter, faster sweep downstream sticks more of those.');
         }
         this._liftFlies();
       }

@@ -119,10 +119,17 @@ that only a state machine can produce.
 **The fish** (`src/fish.js`) judge a fly the way a trout would: how close it is,
 how near the bed it is, and how far its velocity differs from the water around it.
 Interest accumulates while the fly is good and decays when it is not; a fly towed
-across the window spooks them instead. A fish that eats holds the fly for a few
-tenths of a second, and the only reason you ever find out is that its turn tugs
-the leader — which reaches your sighter only in proportion to how tight you were.
-Hook-up probability is a direct function of contact at the moment you lift.
+across the window spooks them instead. A fish that eats holds the fly for
+somewhere between 0.8 and 1.1 seconds, and the only reason you ever find out is
+that its turn tugs the leader — which reaches your sighter only in proportion to
+how tight you were.
+
+Hook-up probability is a direct function of contact at the moment you lift, and
+of how long you took. Fishing well pays twice: a better drift makes a fish take
+more confidently, which also means it holds on longer and gives you more time to
+react. With ordinary contact (0.75–0.85) and an ordinary reaction (0.45–0.60 s)
+you convert 57–79% of takes; with a slack leader (0.65) that falls to about 45%,
+and with a genuinely tight one (0.95) it reaches 85–90%.
 
 **The fight** treats rod and leader as a spring with about half a metre of give,
 so load builds instead of snapping instantly. Hold on through a surge and you pop

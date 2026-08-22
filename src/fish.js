@@ -133,7 +133,7 @@
     this.takenFly = fly;
     this.holdTime = 0;
     // Confident fish on a good drift hold longer; a suspicious one spits fast.
-    this.holdWindow = 0.32 + verdict.quality * 0.42 + (1 - this.river.preset.spook) * 0.18;
+    this.holdWindow = 0.52 + verdict.quality * 0.45 + (1 - this.river.preset.spook) * 0.20;
     this.interest = 0;
     this.turn = { x: this.x - 0.05, y: this.y - 0.04 };
   };
@@ -156,11 +156,15 @@
     return null;
   };
 
-  /** Probability the hook actually finds a hold when you lift. */
+  /**
+   * Probability the hook finds a hold when you lift. Contact still dominates —
+   * slack is what loses fish — but it pays out from a reachable amount of it
+   * rather than demanding a near-perfectly straight leader.
+   */
   Fish.prototype.hookChance = function (contact, reaction) {
     var late = clamp(reaction / Math.max(0.1, this.holdWindow), 0, 1);
-    var base = 0.18 + 0.72 * clamp((contact - 0.62) / 0.34, 0, 1);
-    return clamp(base * (1 - 0.45 * late * late), 0.03, 0.96);
+    var base = 0.34 + 0.60 * clamp((contact - 0.55) / 0.35, 0, 1);
+    return clamp(base * (1 - 0.32 * late * late), 0.10, 0.97);
   };
 
   Fish.prototype.hookUp = function () {
