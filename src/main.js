@@ -8,7 +8,8 @@
   var canvas = document.getElementById('scene');
   var game = new EN.Game();
   var renderer = new EN.Renderer(canvas, game);
-  EN.game = game;   // handy from the console when you want to poke at the sim
+  EN.game = game;       // handy from the console when you want to poke at the sim
+  EN.renderer = renderer;
 
   var el = {};
   ['phase', 'log', 'drift-section', 'contact-val', 'contact-fill', 'contact-band', 'depth-val', 'depth-fill',
@@ -84,6 +85,8 @@
       case '1': setPreset('riffle'); break;
       case '2': setPreset('pocket'); break;
       case '3': setPreset('tailout'); break;
+      case '4': setPreset('boulders'); break;
+      case '5': setPreset('stained'); break;
     }
   });
 

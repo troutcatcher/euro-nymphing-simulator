@@ -35,6 +35,9 @@
     riffle: {
       key: 'riffle',
       name: 'Riffle run',
+      blind: false,
+      murk: 0,
+      water: { surface: '#2c5a63', mid: '#1d4048', deep: '#12292f' },
       blurb: 'Shallow broken water, quick current. Short leash, high rod, keep the bugs ticking.',
       // Mean surface speed at the reference depth, m/s.
       flow: 0.92,
@@ -59,6 +62,9 @@
     pocket: {
       key: 'pocket',
       name: 'Deep pocket',
+      blind: false,
+      murk: 0.18,
+      water: { surface: '#2c5a63', mid: '#1b3c46', deep: '#0f2429' },
       blurb: 'A gouged-out slot with slow water on the bottom. Heavy bugs, patient drift.',
       flow: 0.78,
       refDepth: 0.8,
@@ -82,6 +88,9 @@
     tailout: {
       key: 'tailout',
       name: 'Glassy tailout',
+      blind: false,
+      murk: 0,
+      water: { surface: '#31626a', mid: '#204750', deep: '#143036' },
       blurb: 'Slow, smooth and shallow. Fish see everything — drag shows up instantly.',
       flow: 0.55,
       refDepth: 0.6,
@@ -100,8 +109,67 @@
         { x: 4.50, name: 'mid tailout', quality: 0.8 },
         { x: 1.85, name: 'inside edge', quality: 0.7 }
       ]
+    },
+
+    boulders: {
+      key: 'boulders',
+      name: 'Boulder garden',
+      blurb: 'Broken white water. You will not see a fish in it — the sighter is the only thing that tells you.',
+      blind: true,
+      murk: 0.30,
+      foam: true,
+      water: { surface: '#54767a', mid: '#31555c', deep: '#1a343d' },
+      flow: 0.88,
+      refDepth: 0.55,
+      turbulence: 0.24,
+      spook: 0.10,
+      // Trout in aerated pocket water sit up in the cushion and feed through
+      // more of the column than they will in smooth water.
+      hold: [0.16, 0.30],
+      feedBand: 0.62,
+      bed: [
+        { x: 0.0, y: -0.38 }, { x: 1.10, y: -0.58 }, { x: 1.95, y: -0.36 },
+        { x: 2.80, y: -0.66 }, { x: 3.60, y: -0.40 }, { x: 4.40, y: -0.70 },
+        { x: 5.20, y: -0.44 }, { x: 6.10, y: -0.60 }, { x: 8.00, y: -0.42 }
+      ],
+      rocks: [
+        { x: 1.55, r: 0.30 }, { x: 2.35, r: 0.26 }, { x: 3.95, r: 0.34 },
+        { x: 4.95, r: 0.24 }, { x: 5.70, r: 0.28 }
+      ],
+      lies: [
+        { x: 4.40, name: 'pocket behind the big rock', quality: 1.0 },
+        { x: 2.80, name: 'slot between boulders', quality: 0.9 },
+        { x: 6.10, name: 'tail of the garden', quality: 0.75 }
+      ]
+    },
+
+    stained: {
+      key: 'stained',
+      name: 'Tea-stained run',
+      blurb: 'Peat-dark water over an even run. Nothing shows below the surface — read the sighter and trust it.',
+      blind: true,
+      murk: 0.88,
+      water: { surface: '#6d5731', mid: '#40331b', deep: '#20190c' },
+      flow: 0.60,
+      refDepth: 0.70,
+      turbulence: 0.07,
+      spook: 0.18,
+      bed: [
+        { x: 0.0, y: -0.62 }, { x: 1.40, y: -0.74 }, { x: 2.60, y: -0.82 },
+        { x: 3.80, y: -0.80 }, { x: 5.00, y: -0.74 }, { x: 6.20, y: -0.62 },
+        { x: 8.00, y: -0.52 }
+      ],
+      rocks: [
+        { x: 2.10, r: 0.22 }, { x: 4.30, r: 0.26 }, { x: 5.80, r: 0.18 }
+      ],
+      lies: [
+        { x: 3.20, name: 'the deep middle', quality: 1.0 },
+        { x: 4.80, name: 'the inside seam', quality: 0.85 },
+        { x: 1.90, name: 'head of the run', quality: 0.75 }
+      ]
     }
   };
+
 
   function River(presetKey) {
     this.setPreset(presetKey || 'riffle');

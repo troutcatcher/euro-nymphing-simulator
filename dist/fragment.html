@@ -432,6 +432,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
           <option value="riffle">Riffle run</option>
           <option value="pocket">Deep pocket</option>
           <option value="tailout">Glassy tailout</option>
+          <option value="boulders">Boulder garden — blind</option>
+          <option value="stained">Tea-stained run — blind</option>
         </select>
       </label>
     </section>
@@ -455,6 +457,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       </label>
       <label class="check"><input type="checkbox" id="dropper" checked> Fish a dropper on a tag</label>
       <label class="check"><input type="checkbox" id="lies"> Learning mode (show lies and fish)</label>
+      <p class="sub" style="margin:6px 0 0">The two blind beats hide the fish completely and never announce a take — the sighter is your only instrument. Learning mode reveals them if you want to see what you missed.</p>
     </section>
 
     <section>
@@ -496,7 +499,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       <p><b>Play it</b> by holding the pointer down to gather line and releasing to give it back. Watch the tippet load.</p>
       <p><b>On a phone or tablet:</b> drag to move the rod, flick up to set, and press and hold to gather line while you steer.</p>
       <p><kbd>R</kbd> drops the rig back under the tip if you tangle it or want to start again.</p>
-      <p>Keys: <kbd>Space</kbd> gather line · <kbd>R</kbd> reset the rig · <kbd>C</kbd> tuck cast (fallback) · <kbd>F</kbd> full screen · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> beats</p>
+      <p>Keys: <kbd>Space</kbd> gather line · <kbd>R</kbd> reset the rig · <kbd>C</kbd> tuck cast (fallback) · <kbd>F</kbd> full screen · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd>–<kbd>5</kbd> beats</p>
       <p><b>Full screen</b> (<kbd>F</kbd>, or the ⤢ button) hides this panel and gives the river the whole screen, with the meters you need moved to the top edge. Best held sideways.</p>
     </details>
   </aside>
@@ -540,6 +543,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     riffle: {
       key: 'riffle',
       name: 'Riffle run',
+      blind: false,
+      murk: 0,
+      water: { surface: '#2c5a63', mid: '#1d4048', deep: '#12292f' },
       blurb: 'Shallow broken water, quick current. Short leash, high rod, keep the bugs ticking.',
       // Mean surface speed at the reference depth, m/s.
       flow: 0.92,
@@ -564,6 +570,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     pocket: {
       key: 'pocket',
       name: 'Deep pocket',
+      blind: false,
+      murk: 0.18,
+      water: { surface: '#2c5a63', mid: '#1b3c46', deep: '#0f2429' },
       blurb: 'A gouged-out slot with slow water on the bottom. Heavy bugs, patient drift.',
       flow: 0.78,
       refDepth: 0.8,
@@ -587,6 +596,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     tailout: {
       key: 'tailout',
       name: 'Glassy tailout',
+      blind: false,
+      murk: 0,
+      water: { surface: '#31626a', mid: '#204750', deep: '#143036' },
       blurb: 'Slow, smooth and shallow. Fish see everything — drag shows up instantly.',
       flow: 0.55,
       refDepth: 0.6,
@@ -605,8 +617,67 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
         { x: 4.50, name: 'mid tailout', quality: 0.8 },
         { x: 1.85, name: 'inside edge', quality: 0.7 }
       ]
+    },
+
+    boulders: {
+      key: 'boulders',
+      name: 'Boulder garden',
+      blurb: 'Broken white water. You will not see a fish in it — the sighter is the only thing that tells you.',
+      blind: true,
+      murk: 0.30,
+      foam: true,
+      water: { surface: '#54767a', mid: '#31555c', deep: '#1a343d' },
+      flow: 0.88,
+      refDepth: 0.55,
+      turbulence: 0.24,
+      spook: 0.10,
+      // Trout in aerated pocket water sit up in the cushion and feed through
+      // more of the column than they will in smooth water.
+      hold: [0.16, 0.30],
+      feedBand: 0.62,
+      bed: [
+        { x: 0.0, y: -0.38 }, { x: 1.10, y: -0.58 }, { x: 1.95, y: -0.36 },
+        { x: 2.80, y: -0.66 }, { x: 3.60, y: -0.40 }, { x: 4.40, y: -0.70 },
+        { x: 5.20, y: -0.44 }, { x: 6.10, y: -0.60 }, { x: 8.00, y: -0.42 }
+      ],
+      rocks: [
+        { x: 1.55, r: 0.30 }, { x: 2.35, r: 0.26 }, { x: 3.95, r: 0.34 },
+        { x: 4.95, r: 0.24 }, { x: 5.70, r: 0.28 }
+      ],
+      lies: [
+        { x: 4.40, name: 'pocket behind the big rock', quality: 1.0 },
+        { x: 2.80, name: 'slot between boulders', quality: 0.9 },
+        { x: 6.10, name: 'tail of the garden', quality: 0.75 }
+      ]
+    },
+
+    stained: {
+      key: 'stained',
+      name: 'Tea-stained run',
+      blurb: 'Peat-dark water over an even run. Nothing shows below the surface — read the sighter and trust it.',
+      blind: true,
+      murk: 0.88,
+      water: { surface: '#6d5731', mid: '#40331b', deep: '#20190c' },
+      flow: 0.60,
+      refDepth: 0.70,
+      turbulence: 0.07,
+      spook: 0.18,
+      bed: [
+        { x: 0.0, y: -0.62 }, { x: 1.40, y: -0.74 }, { x: 2.60, y: -0.82 },
+        { x: 3.80, y: -0.80 }, { x: 5.00, y: -0.74 }, { x: 6.20, y: -0.62 },
+        { x: 8.00, y: -0.52 }
+      ],
+      rocks: [
+        { x: 2.10, r: 0.22 }, { x: 4.30, r: 0.26 }, { x: 5.80, r: 0.18 }
+      ],
+      lies: [
+        { x: 3.20, name: 'the deep middle', quality: 1.0 },
+        { x: 4.80, name: 'the inside seam', quality: 0.85 },
+        { x: 1.90, name: 'head of the run', quality: 0.75 }
+      ]
     }
   };
+
 
   function River(presetKey) {
     this.setPreset(presetKey || 'riffle');
@@ -1047,8 +1118,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.lengthCm = Math.round(rand(24, 30 + lie.quality * 22));
     this.mass = Math.pow(this.lengthCm / 30, 3);   // relative "how much it pulls"
 
+    var hold = river.preset.hold || [0.10, 0.20];
     this.x = lie.x;
-    this.y = river.bedY(lie.x) + rand(0.10, 0.20);
+    this.y = river.bedY(lie.x) + rand(hold[0], hold[1]);
     this.homeY = this.y;
     this.vx = 0; this.vy = 0;
 
@@ -1095,7 +1167,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     var dead = clamp(1 - dragErr / 0.34, 0, 1);
 
     var above = river.heightAboveBed(node.x, node.y);
-    var depthScore = clamp(1 - Math.max(0, above - 0.14) / 0.42, 0, 1);
+    var band = river.preset.feedBand || 0.42;
+    var depthScore = clamp(1 - Math.max(0, above - 0.14) / band, 0, 1);
 
     var proximity = clamp(1 - dist / window, 0, 1);
 
@@ -1164,8 +1237,12 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     // The fish turns down and slightly across as it closes on the fly. That
     // small movement is the only thing the sighter has to work with.
     var t = clamp(this.holdTime / Math.max(0.08, this.holdWindow), 0, 1);
-    this.x -= dt * (0.22 + 0.35 * t);
-    this.y -= dt * (0.10 + 0.24 * t);
+    // A trout does not ease onto a nymph, it turns and stabs. That sharp first
+    // moment is the whole signal on water you cannot see into — and it reaches
+    // the sighter only as well as your contact carries it.
+    var stab = Math.exp(-this.holdTime / 0.09);
+    this.x -= dt * (0.22 + 0.35 * t + 2.4 * stab);
+    this.y -= dt * (0.10 + 0.24 * t + 1.35 * stab);
 
     if (this.holdTime >= this.holdWindow) {
       this.state = 'holding';
@@ -1651,6 +1728,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
           if (this.rig.contact < 0.78) {
             this.say('A fish ate and spat it — you never saw it.', 'bad');
             this.coach('Slack hides takes. Lead the sighter downstream so it stays just tight.');
+          } else if (this.river.preset.blind) {
+            this.say('That was a fish. The sighter told you — you did not lift.', 'bad');
+            this.coach('On water like this, set at anything odd. Being wrong costs you a drift; being slow costs you the fish.');
           } else {
             this.say('A fish ate and spat it out.', 'bad');
           }
@@ -1928,6 +2008,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this._drawBed();
     if (this.game.showLies) this._drawLies();
     this._drawFish();
+    this._drawMurk();
+    this._drawHookedFish();
     this._drawSurface();
     this._drawAngler();
     this._drawRig();
@@ -1975,13 +2057,43 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
   Renderer.prototype._drawWater = function () {
     var ctx = this.ctx;
+    var w = this.game.river.preset.water
+         || { surface: '#2c5a63', mid: '#1d4048', deep: '#12292f' };
     var top = this.sy(0);
     var g = ctx.createLinearGradient(0, top, 0, this.ch);
-    g.addColorStop(0, '#2c5a63');
-    g.addColorStop(0.55, '#1d4048');
-    g.addColorStop(1, '#12292f');
+    g.addColorStop(0, w.surface);
+    g.addColorStop(0.55, w.mid);
+    g.addColorStop(1, w.deep);
     ctx.fillStyle = g;
     ctx.fillRect(0, top, this.cw, this.ch - top);
+  };
+
+  /**
+   * Water you cannot see into. Peat stain and aerated white water both hide a
+   * trout completely, so the murk is drawn over the bed and over any fish that
+   * has not been hooked — leaving the sighter as the only thing reporting back.
+   */
+  Renderer.prototype._drawMurk = function () {
+    var preset = this.game.river.preset;
+    var murk = preset.murk || 0;
+    if (murk <= 0) return;
+
+    var ctx = this.ctx;
+    var w = preset.water;
+    var top = this.sy(0);
+    var deepest = this.sy(-(this.game.river.maxDepth || 1));
+    var g = ctx.createLinearGradient(0, top, 0, deepest);
+    g.addColorStop(0, this._rgba(w.surface, murk * 0.28));
+    g.addColorStop(0.45, this._rgba(w.mid, murk * 0.82));
+    g.addColorStop(1, this._rgba(w.deep, murk));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, top, this.cw, this.ch - top);
+  };
+
+  Renderer.prototype._rgba = function (hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255)
+         + ',' + Math.max(0, Math.min(1, a)).toFixed(3) + ')';
   };
 
   Renderer.prototype._drawParticles = function () {
@@ -2074,14 +2186,24 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   };
 
   Renderer.prototype._drawFish = function () {
-    var ctx = this.ctx;
     var fishes = this.game.school.fish;
+    var blind = !!this.game.river.preset.blind;
     for (var i = 0; i < fishes.length; i++) {
       var f = fishes[i];
-      if (!f.visible()) continue;
-      // Holding fish are hard to pick out unless you are in learning mode.
+      if (!f.visible() || f.state === 'hooked') continue;
+      // On blind water nothing shows at all, including a fish with your fly in
+      // its mouth. Learning mode is the way to see what you are missing.
+      if (blind && !this.game.showLies) continue;
       var hidden = f.state === 'holding' && !this.game.showLies;
       this._drawOneFish(f, hidden ? 0.16 : 1);
+    }
+  };
+
+  /** A hooked fish is up in the water and thrashing — you see that anywhere. */
+  Renderer.prototype._drawHookedFish = function () {
+    var fishes = this.game.school.fish;
+    for (var i = 0; i < fishes.length; i++) {
+      if (fishes[i].state === 'hooked') this._drawOneFish(fishes[i], 1);
     }
   };
 
@@ -2164,6 +2286,27 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       if (px === 0) ctx.moveTo(px, y0 + wave); else ctx.lineTo(px, y0 + wave);
     }
     ctx.stroke();
+
+    if (!river.preset.foam) return;
+    // Aerated seams peeling off the rocks.
+    var rocks = river.preset.rocks || [];
+    ctx.lineCap = 'round';
+    for (var r = 0; r < rocks.length; r++) {
+      var rock = rocks[r];
+      for (var k = 0; k < 5; k++) {
+        var phase = this.t * 1.6 + k * 0.7 + r;
+        var run = (phase % 1);
+        var fx = rock.x + 0.12 + run * 1.5;
+        var fy = -0.02 - ((k * 0.37) % 1) * 0.09;
+        var fade = (1 - run) * 0.5;
+        ctx.strokeStyle = 'rgba(233,246,248,' + fade.toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1, 0.02 * this.scale);
+        ctx.beginPath();
+        ctx.moveTo(this.sx(fx), this.sy(fy));
+        ctx.lineTo(this.sx(fx + 0.16), this.sy(fy));
+        ctx.stroke();
+      }
+    }
   };
 
   Renderer.prototype._drawAngler = function () {
@@ -2356,7 +2499,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   var canvas = document.getElementById('scene');
   var game = new EN.Game();
   var renderer = new EN.Renderer(canvas, game);
-  EN.game = game;   // handy from the console when you want to poke at the sim
+  EN.game = game;       // handy from the console when you want to poke at the sim
+  EN.renderer = renderer;
 
   var el = {};
   ['phase', 'log', 'drift-section', 'contact-val', 'contact-fill', 'contact-band', 'depth-val', 'depth-fill',
@@ -2432,6 +2576,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       case '1': setPreset('riffle'); break;
       case '2': setPreset('pocket'); break;
       case '3': setPreset('tailout'); break;
+      case '4': setPreset('boulders'); break;
+      case '5': setPreset('stained'); break;
     }
   });
 

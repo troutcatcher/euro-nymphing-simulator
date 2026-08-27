@@ -323,6 +323,9 @@
           if (this.rig.contact < 0.78) {
             this.say('A fish ate and spat it — you never saw it.', 'bad');
             this.coach('Slack hides takes. Lead the sighter downstream so it stays just tight.');
+          } else if (this.river.preset.blind) {
+            this.say('That was a fish. The sighter told you — you did not lift.', 'bad');
+            this.coach('On water like this, set at anything odd. Being wrong costs you a drift; being slow costs you the fish.');
           } else {
             this.say('A fish ate and spat it out.', 'bad');
           }

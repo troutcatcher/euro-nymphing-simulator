@@ -87,12 +87,38 @@ gains one to three metres of upstream water; do it twice to reach the top of the
 run. **Nothing anywhere in the simulator asks how the flies got wet** — a fly in
 the water is fishing, full stop.
 
-Three beats, each of which wants a different rig:
+Five beats, each of which wants something different:
 
 - **Riffle run** — shallow, quick, forgiving. Short leash, high rod.
 - **Deep pocket** — you will not reach the bottom on the default rig. Lengthen the
   leader and go heavier.
 - **Glassy tailout** — slow and clear. Fish see drag instantly and spook.
+- **Boulder garden** *(blind)* — broken white water over a spiky bed. Trout sit up
+  in the cushion and feed through more of the column, but the water twitches the
+  sighter constantly, so you strike at a lot of nothing.
+- **Tea-stained run** *(blind)* — peat-dark and even. Nothing shows below the
+  surface, but the water is quiet, so a take is unmistakable if you are tight.
+
+### The blind beats
+
+On the two blind beats nothing is drawn below the surface and **nothing announces
+a take** — no message, no highlight. A hooked fish becomes visible once it is on,
+and learning mode still reveals everything if you want to see what you missed.
+The only thing reporting back is the sighter.
+
+That works because a trout does not ease onto a nymph, it turns and stabs, and
+that sharp first moment travels up the leader in proportion to how tight you were.
+Measured on the tea-stained run, holding a settled drift and comparing the take
+against the drift's own jitter:
+
+| Contact | Take signal | Drift noise (median) | Readable |
+| --- | --- | --- | --- |
+| 0.91 (tight) | 3.2 – 4.1 | 0.18 | 10 / 10 |
+| 0.71 (slack) | 0.3 – 1.1 | 0.13 | 0 / 10 |
+
+Slack does not just cost you the hookup — it costs you ever knowing there was a
+fish. That is the entire lesson of the technique, and here it is a measurement
+rather than a claim.
 
 ## What is actually simulated
 

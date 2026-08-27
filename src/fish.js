@@ -26,8 +26,9 @@
     this.lengthCm = Math.round(rand(24, 30 + lie.quality * 22));
     this.mass = Math.pow(this.lengthCm / 30, 3);   // relative "how much it pulls"
 
+    var hold = river.preset.hold || [0.10, 0.20];
     this.x = lie.x;
-    this.y = river.bedY(lie.x) + rand(0.10, 0.20);
+    this.y = river.bedY(lie.x) + rand(hold[0], hold[1]);
     this.homeY = this.y;
     this.vx = 0; this.vy = 0;
 
@@ -74,7 +75,8 @@
     var dead = clamp(1 - dragErr / 0.34, 0, 1);
 
     var above = river.heightAboveBed(node.x, node.y);
-    var depthScore = clamp(1 - Math.max(0, above - 0.14) / 0.42, 0, 1);
+    var band = river.preset.feedBand || 0.42;
+    var depthScore = clamp(1 - Math.max(0, above - 0.14) / band, 0, 1);
 
     var proximity = clamp(1 - dist / window, 0, 1);
 
@@ -143,8 +145,12 @@
     // The fish turns down and slightly across as it closes on the fly. That
     // small movement is the only thing the sighter has to work with.
     var t = clamp(this.holdTime / Math.max(0.08, this.holdWindow), 0, 1);
-    this.x -= dt * (0.22 + 0.35 * t);
-    this.y -= dt * (0.10 + 0.24 * t);
+    // A trout does not ease onto a nymph, it turns and stabs. That sharp first
+    // moment is the whole signal on water you cannot see into — and it reaches
+    // the sighter only as well as your contact carries it.
+    var stab = Math.exp(-this.holdTime / 0.09);
+    this.x -= dt * (0.22 + 0.35 * t + 2.4 * stab);
+    this.y -= dt * (0.10 + 0.24 * t + 1.35 * stab);
 
     if (this.holdTime >= this.holdWindow) {
       this.state = 'holding';

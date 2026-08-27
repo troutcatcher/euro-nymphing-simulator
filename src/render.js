@@ -109,6 +109,8 @@
     this._drawBed();
     if (this.game.showLies) this._drawLies();
     this._drawFish();
+    this._drawMurk();
+    this._drawHookedFish();
     this._drawSurface();
     this._drawAngler();
     this._drawRig();
@@ -156,13 +158,43 @@
 
   Renderer.prototype._drawWater = function () {
     var ctx = this.ctx;
+    var w = this.game.river.preset.water
+         || { surface: '#2c5a63', mid: '#1d4048', deep: '#12292f' };
     var top = this.sy(0);
     var g = ctx.createLinearGradient(0, top, 0, this.ch);
-    g.addColorStop(0, '#2c5a63');
-    g.addColorStop(0.55, '#1d4048');
-    g.addColorStop(1, '#12292f');
+    g.addColorStop(0, w.surface);
+    g.addColorStop(0.55, w.mid);
+    g.addColorStop(1, w.deep);
     ctx.fillStyle = g;
     ctx.fillRect(0, top, this.cw, this.ch - top);
+  };
+
+  /**
+   * Water you cannot see into. Peat stain and aerated white water both hide a
+   * trout completely, so the murk is drawn over the bed and over any fish that
+   * has not been hooked — leaving the sighter as the only thing reporting back.
+   */
+  Renderer.prototype._drawMurk = function () {
+    var preset = this.game.river.preset;
+    var murk = preset.murk || 0;
+    if (murk <= 0) return;
+
+    var ctx = this.ctx;
+    var w = preset.water;
+    var top = this.sy(0);
+    var deepest = this.sy(-(this.game.river.maxDepth || 1));
+    var g = ctx.createLinearGradient(0, top, 0, deepest);
+    g.addColorStop(0, this._rgba(w.surface, murk * 0.28));
+    g.addColorStop(0.45, this._rgba(w.mid, murk * 0.82));
+    g.addColorStop(1, this._rgba(w.deep, murk));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, top, this.cw, this.ch - top);
+  };
+
+  Renderer.prototype._rgba = function (hex, a) {
+    var n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255)
+         + ',' + Math.max(0, Math.min(1, a)).toFixed(3) + ')';
   };
 
   Renderer.prototype._drawParticles = function () {
@@ -255,14 +287,24 @@
   };
 
   Renderer.prototype._drawFish = function () {
-    var ctx = this.ctx;
     var fishes = this.game.school.fish;
+    var blind = !!this.game.river.preset.blind;
     for (var i = 0; i < fishes.length; i++) {
       var f = fishes[i];
-      if (!f.visible()) continue;
-      // Holding fish are hard to pick out unless you are in learning mode.
+      if (!f.visible() || f.state === 'hooked') continue;
+      // On blind water nothing shows at all, including a fish with your fly in
+      // its mouth. Learning mode is the way to see what you are missing.
+      if (blind && !this.game.showLies) continue;
       var hidden = f.state === 'holding' && !this.game.showLies;
       this._drawOneFish(f, hidden ? 0.16 : 1);
+    }
+  };
+
+  /** A hooked fish is up in the water and thrashing — you see that anywhere. */
+  Renderer.prototype._drawHookedFish = function () {
+    var fishes = this.game.school.fish;
+    for (var i = 0; i < fishes.length; i++) {
+      if (fishes[i].state === 'hooked') this._drawOneFish(fishes[i], 1);
     }
   };
 
@@ -345,6 +387,27 @@
       if (px === 0) ctx.moveTo(px, y0 + wave); else ctx.lineTo(px, y0 + wave);
     }
     ctx.stroke();
+
+    if (!river.preset.foam) return;
+    // Aerated seams peeling off the rocks.
+    var rocks = river.preset.rocks || [];
+    ctx.lineCap = 'round';
+    for (var r = 0; r < rocks.length; r++) {
+      var rock = rocks[r];
+      for (var k = 0; k < 5; k++) {
+        var phase = this.t * 1.6 + k * 0.7 + r;
+        var run = (phase % 1);
+        var fx = rock.x + 0.12 + run * 1.5;
+        var fy = -0.02 - ((k * 0.37) % 1) * 0.09;
+        var fade = (1 - run) * 0.5;
+        ctx.strokeStyle = 'rgba(233,246,248,' + fade.toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1, 0.02 * this.scale);
+        ctx.beginPath();
+        ctx.moveTo(this.sx(fx), this.sy(fy));
+        ctx.lineTo(this.sx(fx + 0.16), this.sy(fy));
+        ctx.stroke();
+      }
+    }
   };
 
   Renderer.prototype._drawAngler = function () {
