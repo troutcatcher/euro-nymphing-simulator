@@ -406,7 +406,7 @@
   School.prototype.active = function () {
     for (var i = 0; i < this.fish.length; i++) {
       var f = this.fish[i];
-      if (f.state === 'taken' || f.state === 'hooked') return f;
+      if (f.state === 'taken' || f.state === 'hooked' || f.state === 'netting') return f;
     }
     return null;
   };

@@ -66,11 +66,11 @@
         game.gathering = true;
         break;
       case 'r': case 'R':
-        if (game.phase !== 'fighting') game.resetDrift();
+        if (game.phase === 'fishing') game.resetDrift();
         break;
       case 'c': case 'C':
         // Keyboard-only fallback for anyone who cannot get the sweep to load.
-        if (game.phase !== 'fighting') game.cast();
+        if (game.phase === 'fishing') game.cast();
         break;
       case 'l': case 'L':
         el.lies.checked = !el.lies.checked;
@@ -284,13 +284,15 @@
   var PHASE_TEXT = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>sweep the rod up</strong> to set',
-    fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it'
+    fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it',
+    netting: 'Netting it…'
   };
 
   var PHASE_TEXT_TOUCH = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>flick up</strong> to set',
-    fighting: 'Fish on — <strong>press and hold</strong> to gather line, let go to give it'
+    fighting: 'Fish on — <strong>press and hold</strong> to gather line, let go to give it',
+    netting: 'Netting it…'
   };
 
   function setFill(node, pct, color) {
@@ -304,7 +306,8 @@
     var hud = game.hudState();
     var s = game.stats;
 
-    var cue = game.phase === 'fighting' ? 'fighting'
+    var cue = game.phase === 'netting' ? 'netting'
+            : game.phase === 'fighting' ? 'fighting'
             : (game.driftActive ? 'drifting' : 'idle');
     el.phase.innerHTML = game.paused
       ? 'Paused — <kbd>P</kbd> to resume'

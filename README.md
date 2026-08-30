@@ -204,7 +204,12 @@ or down, committed — and jumps; a tiring one bores deep or sulks with its nose
 the flow; a beaten one wallows on the top. A jump is genuinely ballistic, clear
 of the water at up to half a metre, and slack while it is up there is twice as
 likely to lose you the hook. Rod and leader are a spring with about half a metre
-of give, so load builds instead of snapping instantly. Hold on through a surge and you pop
+of give, so load builds instead of snapping instantly.
+
+Beating a fish does not end it. The angler unships the net, sinks it in front of
+them, draws the fish over the hoop and lifts — two seconds during which the fish
+follows the mouth of the net along the same path the net is drawn on, so the
+picture and the physics cannot disagree. Hold on through a surge and you pop
 the tippet; let go and line slips under load. A fish is landed at your feet, not
 at the rod tip, which is why you have to drop the rod at the end.
 

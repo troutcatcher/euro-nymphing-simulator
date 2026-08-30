@@ -227,6 +227,7 @@
     this._drawFish();
     this._drawMurk();
     this._drawHookedFish();
+    this._drawNet();
     this._drawSurface();
     this._drawDroplets();
     this._drawAngler();
@@ -590,7 +591,7 @@
     var blind = !!this.game.river.preset.blind;
     for (var i = 0; i < fishes.length; i++) {
       var f = fishes[i];
-      if (!f.visible() || f.state === 'hooked') continue;
+      if (!f.visible() || f.state === 'hooked' || f.state === 'netting') continue;
       // On blind water nothing shows at all, including a fish with your fly in
       // its mouth. Learning mode is the way to see what you are missing.
       if (blind && !this.game.showLies) continue;
@@ -605,7 +606,7 @@
     var fishes = this.game.school.fish;
     for (var i = 0; i < fishes.length; i++) {
       var f = fishes[i];
-      if (f.state !== 'hooked') continue;
+      if (f.state !== 'hooked' && f.state !== 'netting') continue;
       if (f.airborne) {
         // Clear of the water it catches the light and throws a shadow of spray.
         ctx.save();
@@ -901,14 +902,16 @@
 
     ctx.save();
 
-    // Net hoop slung on the back.
-    ctx.strokeStyle = 'rgba(22,37,43,0.9)';
-    ctx.lineWidth = 0.035 * S;
-    ctx.beginPath();
-    ctx.ellipse(X(0.60), Y(1.00), 0.20 * S, 0.13 * S, -0.5, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(22,37,43,0.35)';
-    ctx.fill();
+    // Net: slung on the back until there is a fish to put in it.
+    if (g.phase !== 'netting') {
+      ctx.strokeStyle = 'rgba(22,37,43,0.9)';
+      ctx.lineWidth = 0.035 * S;
+      ctx.beginPath();
+      ctx.ellipse(X(0.60), Y(1.00), 0.20 * S, 0.13 * S, -0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(22,37,43,0.35)';
+      ctx.fill();
+    }
 
     // Waders: two legs, the far one darker so the stance reads.
     ctx.fillStyle = '#152229';
@@ -943,6 +946,19 @@
     // Wading belt.
     ctx.fillStyle = 'rgba(8,14,17,0.9)';
     ctx.fillRect(X(0.20), hipY - 0.035 * S, 0.29 * S, 0.035 * S);
+
+    // Off arm reaching down to the net handle while it is in use.
+    if (g.phase === 'netting') {
+      var m = g.netMouth(g.netProgress);
+      ctx.strokeStyle = '#16252b';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 0.065 * S;
+      ctx.beginPath();
+      ctx.moveTo(X(0.30), Y(1.22));
+      ctx.quadraticCurveTo(X(0.10), Y(0.80),
+                           this.sx(m.x) + 0.52 * S, this.sy(m.y) + 0.03 * S);
+      ctx.stroke();
+    }
 
     // Rod arm, out to the grip.
     ctx.strokeStyle = '#16252b';
@@ -987,6 +1003,94 @@
 
     ctx.restore();
     this._drawRod(gx, gy);
+  };
+
+  /**
+   * The landing net, through the scoop. The hoop tips as it goes down, the bag
+   * hangs off the back of it, and once there is weight in it the mesh sags and
+   * sheds water. The handle always runs back to the angler's off hand.
+   */
+  Renderer.prototype._drawNet = function () {
+    var g = this.game;
+    if (g.phase !== 'netting') return;
+    var ctx = this.ctx;
+    var S = this.scale;
+    var p = g.netProgress;
+    var mouth = g.netMouth(p);
+    var mx = this.sx(mouth.x), my = this.sy(mouth.y);
+
+    // Hoop lies flat while it is being sunk and drawn, then tips as it lifts.
+    var tilt = -0.35 + Math.min(1, Math.max(0, (p - 0.58) / 0.30)) * 0.75;
+    var rx = 0.34 * S, ry = 0.095 * S;
+    var loaded = p > 0.55;
+    var sag = loaded ? 0.26 : 0.15;
+
+    ctx.save();
+    ctx.translate(mx, my);
+    ctx.rotate(tilt);
+
+    // Mesh bag, drawn behind the rim.
+    ctx.beginPath();
+    ctx.moveTo(-rx, 0);
+    ctx.quadraticCurveTo(-rx * 0.6, sag * S * 1.5, 0, sag * S * 1.6);
+    ctx.quadraticCurveTo(rx * 0.6, sag * S * 1.5, rx, 0);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(24,40,46,0.42)';
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(176,200,206,0.34)';
+    ctx.lineWidth = Math.max(0.7, 0.008 * S);
+    for (var i = 1; i < 6; i++) {
+      var f = -1 + (i / 3);
+      ctx.beginPath();
+      ctx.moveTo(rx * f, 0);
+      ctx.quadraticCurveTo(rx * f * 0.55, sag * S * 1.35, rx * f * 0.22, sag * S * 1.5);
+      ctx.stroke();
+    }
+    for (var j = 1; j <= 2; j++) {
+      var d = (j / 3) * sag * S * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-rx * (1 - j * 0.22), d);
+      ctx.quadraticCurveTo(0, d + sag * S * 0.3, rx * (1 - j * 0.22), d);
+      ctx.stroke();
+    }
+
+    // The rim itself.
+    ctx.strokeStyle = '#20343c';
+    ctx.lineWidth = Math.max(2, 0.030 * S);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(180,210,216,0.35)';
+    ctx.lineWidth = Math.max(1, 0.012 * S);
+    ctx.beginPath();
+    ctx.ellipse(0, -ry * 0.18, rx * 0.96, ry * 0.8, 0, Math.PI, Math.PI * 2);
+    ctx.stroke();
+
+    // Handle back toward the angler.
+    ctx.strokeStyle = '#7a5f38';
+    ctx.lineWidth = Math.max(2, 0.032 * S);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(rx * 0.92, ry * 0.2);
+    ctx.lineTo(rx * 1.85, ry * 0.2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Water pouring off the mesh as it comes up.
+    if (p > 0.62 && p < 0.95) {
+      var drip = (p - 0.62) / 0.33;
+      ctx.strokeStyle = 'rgba(214,240,246,' + (0.5 * (1 - drip)).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(1, 0.010 * S);
+      for (var k = 0; k < 7; k++) {
+        var ox = (-0.22 + k * 0.075) * S;
+        var len = (0.10 + ((k * 0.37) % 1) * 0.16) * S * (1 - drip * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(mx + ox, my + 0.10 * S);
+        ctx.lineTo(mx + ox, my + 0.10 * S + len);
+        ctx.stroke();
+      }
+    }
   };
 
   Renderer.prototype._drawRod = function (gx, gy) {

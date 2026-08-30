@@ -1797,7 +1797,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   School.prototype.active = function () {
     for (var i = 0; i < this.fish.length; i++) {
       var f = this.fish[i];
-      if (f.state === 'taken' || f.state === 'hooked') return f;
+      if (f.state === 'taken' || f.state === 'hooked' || f.state === 'netting') return f;
     }
     return null;
   };
@@ -1837,6 +1837,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
     this.grip = { x: 6.90, y: 1.00 };
     this.netPoint = { x: 6.35, y: -0.10 };   // where a fish is actually landed
+    this.netFish = null;
+    this.netTime = 0;
+    this.netProgress = 0;
     this.rodLength = 3.20;
     this.tip = { x: 5.3, y: 1.9 };
     this.tipTarget = { x: 5.3, y: 1.9 };
@@ -1920,6 +1923,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.driftActive = false;
     this.driftLocked = false;
     this.dryTime = 0;
+    this.netFish = null;
+    this.netProgress = 0;
     this.drift = this._blankDrift();
     this._resetLift(0);
   };
@@ -1942,7 +1947,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   };
 
   Game.prototype.cast = function () {
-    if (this.phase === 'fighting') return;
+    if (this.phase === 'fighting' || this.phase === 'netting') return;
     var reach = this.rig.config.leaderLength * 0.82;
     var tx = clamp(this.tip.x - reach, EN.WORLD.xMin + 0.4, this.tip.x - 0.9);
     var ty = 0.22;
@@ -1969,7 +1974,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   };
 
   Game.prototype.strike = function () {
-    if (this.phase === 'fighting') return;
+    if (this.phase === 'fighting' || this.phase === 'netting') return;
 
     if (EN.audio) {
       // How much of the rig is under water is how much of it you hear move.
@@ -2068,7 +2073,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     }
 
     this._updateFish(dt);
-    if (this.phase !== 'fighting') this._trackDrift(dt);
+    if (this.phase === 'netting') this._updateNetting(dt);
+    if (this.phase === 'fishing') this._trackDrift(dt);
   };
 
   Game.prototype._anchorTo = function (fish) {
@@ -2103,7 +2109,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     }
 
     // Only a lift with the flies actually in the water can set a hook.
-    if (this.liftStrike && this.phase !== 'fighting' && this._anyFlyWet() &&
+    if (this.liftStrike && this.phase === 'fishing' && this._anyFlyWet() &&
         this.liftCooldown <= 0 && this.lift > this.liftThreshold) {
       this.liftCooldown = 0.9;
       this.strike();
@@ -2127,7 +2133,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     // A fly only fishes when it is in the water. How it got there — a tuck
     // cast, or a sweep of the rod — is none of the trout's business.
     var flies = [];
-    if (this.phase !== 'fighting') {
+    if (this.phase === 'fishing') {
       var point = this.rig.point();
       if (point.y < 0) flies.push(point);
       var dropper = this.rig.dropper();
@@ -2185,7 +2191,10 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
             this.coach('It is beaten. Low rod, short line, walk it in to your side.');
           }
         }
-        if (res) this._endFight(f, res);
+        if (res) {
+          if (res.type === 'landed') this._beginNetting(f);
+          else this._endFight(f, res);
+        }
       }
     }
   };
@@ -2193,6 +2202,98 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   function fish_jumped(f) {
     return f.lengthCm + ' cm ' + f.species.name.toLowerCase() + ' — airborne!';
   }
+
+  /**
+   * Bringing a beaten fish to the net. The rod work is over; what is left is
+   * the part every session actually ends with — unship the net, sink it in
+   * front of you, draw the fish over it, and lift.
+   */
+  Game.prototype._beginNetting = function (fish) {
+    this.phase = 'netting';
+    this.netFish = fish;
+    this.netTime = 0;
+    this.netProgress = 0;
+    this._netSplashed = false;
+    fish.state = 'netting';
+    fish.airborne = false;
+    if (EN.audio) EN.audio.setFight(null);
+  };
+
+  var NET_SECONDS = 2.0;
+
+  // Where the mouth of the net is through the sequence. The fish rides this
+  // same path once it is over the hoop, so the picture and the physics agree.
+  var NET_PATH = [
+    { p: 0.00, x: 0.58, y: 0.95 },    // stowed on the angler's back
+    { p: 0.26, x: -0.16, y: -0.24 },  // sunk in front of them
+    { p: 0.58, x: 0.02, y: -0.19 },   // drawn back under the fish
+    { p: 0.80, x: 0.14, y: 0.24 },    // lifted clear, water pouring out
+    { p: 1.00, x: 0.16, y: 0.30 }
+  ];
+
+  Game.prototype.netMouth = function (p) {
+    var a = NET_PATH[0], b = NET_PATH[NET_PATH.length - 1];
+    for (var i = 1; i < NET_PATH.length; i++) {
+      if (p <= NET_PATH[i].p) { a = NET_PATH[i - 1]; b = NET_PATH[i]; break; }
+      a = NET_PATH[i - 1]; b = NET_PATH[i];
+    }
+    var span = Math.max(1e-6, b.p - a.p);
+    var t = clamp((p - a.p) / span, 0, 1);
+    t = t * t * (3 - 2 * t);                       // ease in and out
+    return { x: this.netPoint.x + a.x + (b.x - a.x) * t,
+             y: a.y + (b.y - a.y) * t };
+  };
+
+  Game.prototype._updateNetting = function (dt) {
+    var f = this.netFish;
+    if (!f) { this.phase = 'fishing'; return; }
+
+    this.netTime += dt;
+    this.netProgress = clamp(this.netTime / NET_SECONDS, 0, 1);
+    var mouth = this.netMouth(this.netProgress);
+
+    if (this.netProgress < 0.5) {
+      // Still being drawn across in front of the angler.
+      var k = Math.min(1, dt * 3.4);
+      f.x += (this.netPoint.x - 0.05 - f.x) * k;
+      f.y += (-0.16 - f.y) * k;
+    } else {
+      // Over the hoop and then riding it out of the water.
+      var k2 = Math.min(1, dt * 11);
+      f.x += (mouth.x - f.x) * k2;
+      f.y += (mouth.y - 0.045 - f.y) * k2;
+    }
+    f.vx *= 0.82;
+    f.vy *= 0.82;
+    this._anchorTo(f);
+
+    if (!this._netSplashed && this.netProgress > 0.62) {
+      this._netSplashed = true;
+      if (EN.audio) EN.audio.landed();
+    }
+
+    if (this.netProgress >= 1) this._finishNetting();
+  };
+
+  Game.prototype._finishNetting = function () {
+    var fish = this.netFish;
+    this.netFish = null;
+    this.netProgress = 0;
+    this.rig.anchor = null;
+    this.phase = 'fishing';
+    this.phaseTime = 0;
+    this.driftActive = false;
+    this.driftLocked = true;
+    this.dryTime = 0;
+    this.rig.lineOut = this.rig.config.leaderLength;
+
+    fish.state = 'landed';
+    this.stats.landed++;
+    this.stats.bestFish = Math.max(this.stats.bestFish, fish.lengthCm);
+    this.say('Netted — ' + fish.lengthCm + ' cm ' + fish.species.name.toLowerCase()
+             + '. Nicely done.', 'good');
+    this.school.reset();
+  };
 
   Game.prototype._endFight = function (fish, res) {
     this.rig.anchor = null;
@@ -2205,13 +2306,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
     if (EN.audio) {
       EN.audio.setFight(null);
-      if (res.type === 'broke') EN.audio.snap(); else EN.audio.landed();
+      if (res.type === 'broke') EN.audio.snap();
     }
-    if (res.type === 'landed') {
-      this.stats.landed++;
-      this.stats.bestFish = Math.max(this.stats.bestFish, fish.lengthCm);
-      this.say('Landed — ' + fish.lengthCm + ' cm ' + fish.species.name.toLowerCase() + '. Nicely done.', 'good');
-    } else if (res.type === 'broke') {
+    if (res.type === 'broke') {
       this.stats.lost++;
       this.say('Snap. Tippet gone.', 'bad');
       this.coach('Give line when it surges — drop the rod tip downstream instead of holding hard.');
@@ -2578,6 +2675,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this._drawFish();
     this._drawMurk();
     this._drawHookedFish();
+    this._drawNet();
     this._drawSurface();
     this._drawDroplets();
     this._drawAngler();
@@ -2941,7 +3039,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     var blind = !!this.game.river.preset.blind;
     for (var i = 0; i < fishes.length; i++) {
       var f = fishes[i];
-      if (!f.visible() || f.state === 'hooked') continue;
+      if (!f.visible() || f.state === 'hooked' || f.state === 'netting') continue;
       // On blind water nothing shows at all, including a fish with your fly in
       // its mouth. Learning mode is the way to see what you are missing.
       if (blind && !this.game.showLies) continue;
@@ -2956,7 +3054,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     var fishes = this.game.school.fish;
     for (var i = 0; i < fishes.length; i++) {
       var f = fishes[i];
-      if (f.state !== 'hooked') continue;
+      if (f.state !== 'hooked' && f.state !== 'netting') continue;
       if (f.airborne) {
         // Clear of the water it catches the light and throws a shadow of spray.
         ctx.save();
@@ -3252,14 +3350,16 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
     ctx.save();
 
-    // Net hoop slung on the back.
-    ctx.strokeStyle = 'rgba(22,37,43,0.9)';
-    ctx.lineWidth = 0.035 * S;
-    ctx.beginPath();
-    ctx.ellipse(X(0.60), Y(1.00), 0.20 * S, 0.13 * S, -0.5, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(22,37,43,0.35)';
-    ctx.fill();
+    // Net: slung on the back until there is a fish to put in it.
+    if (g.phase !== 'netting') {
+      ctx.strokeStyle = 'rgba(22,37,43,0.9)';
+      ctx.lineWidth = 0.035 * S;
+      ctx.beginPath();
+      ctx.ellipse(X(0.60), Y(1.00), 0.20 * S, 0.13 * S, -0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(22,37,43,0.35)';
+      ctx.fill();
+    }
 
     // Waders: two legs, the far one darker so the stance reads.
     ctx.fillStyle = '#152229';
@@ -3294,6 +3394,19 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     // Wading belt.
     ctx.fillStyle = 'rgba(8,14,17,0.9)';
     ctx.fillRect(X(0.20), hipY - 0.035 * S, 0.29 * S, 0.035 * S);
+
+    // Off arm reaching down to the net handle while it is in use.
+    if (g.phase === 'netting') {
+      var m = g.netMouth(g.netProgress);
+      ctx.strokeStyle = '#16252b';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 0.065 * S;
+      ctx.beginPath();
+      ctx.moveTo(X(0.30), Y(1.22));
+      ctx.quadraticCurveTo(X(0.10), Y(0.80),
+                           this.sx(m.x) + 0.52 * S, this.sy(m.y) + 0.03 * S);
+      ctx.stroke();
+    }
 
     // Rod arm, out to the grip.
     ctx.strokeStyle = '#16252b';
@@ -3338,6 +3451,94 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
     ctx.restore();
     this._drawRod(gx, gy);
+  };
+
+  /**
+   * The landing net, through the scoop. The hoop tips as it goes down, the bag
+   * hangs off the back of it, and once there is weight in it the mesh sags and
+   * sheds water. The handle always runs back to the angler's off hand.
+   */
+  Renderer.prototype._drawNet = function () {
+    var g = this.game;
+    if (g.phase !== 'netting') return;
+    var ctx = this.ctx;
+    var S = this.scale;
+    var p = g.netProgress;
+    var mouth = g.netMouth(p);
+    var mx = this.sx(mouth.x), my = this.sy(mouth.y);
+
+    // Hoop lies flat while it is being sunk and drawn, then tips as it lifts.
+    var tilt = -0.35 + Math.min(1, Math.max(0, (p - 0.58) / 0.30)) * 0.75;
+    var rx = 0.34 * S, ry = 0.095 * S;
+    var loaded = p > 0.55;
+    var sag = loaded ? 0.26 : 0.15;
+
+    ctx.save();
+    ctx.translate(mx, my);
+    ctx.rotate(tilt);
+
+    // Mesh bag, drawn behind the rim.
+    ctx.beginPath();
+    ctx.moveTo(-rx, 0);
+    ctx.quadraticCurveTo(-rx * 0.6, sag * S * 1.5, 0, sag * S * 1.6);
+    ctx.quadraticCurveTo(rx * 0.6, sag * S * 1.5, rx, 0);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(24,40,46,0.42)';
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(176,200,206,0.34)';
+    ctx.lineWidth = Math.max(0.7, 0.008 * S);
+    for (var i = 1; i < 6; i++) {
+      var f = -1 + (i / 3);
+      ctx.beginPath();
+      ctx.moveTo(rx * f, 0);
+      ctx.quadraticCurveTo(rx * f * 0.55, sag * S * 1.35, rx * f * 0.22, sag * S * 1.5);
+      ctx.stroke();
+    }
+    for (var j = 1; j <= 2; j++) {
+      var d = (j / 3) * sag * S * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-rx * (1 - j * 0.22), d);
+      ctx.quadraticCurveTo(0, d + sag * S * 0.3, rx * (1 - j * 0.22), d);
+      ctx.stroke();
+    }
+
+    // The rim itself.
+    ctx.strokeStyle = '#20343c';
+    ctx.lineWidth = Math.max(2, 0.030 * S);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(180,210,216,0.35)';
+    ctx.lineWidth = Math.max(1, 0.012 * S);
+    ctx.beginPath();
+    ctx.ellipse(0, -ry * 0.18, rx * 0.96, ry * 0.8, 0, Math.PI, Math.PI * 2);
+    ctx.stroke();
+
+    // Handle back toward the angler.
+    ctx.strokeStyle = '#7a5f38';
+    ctx.lineWidth = Math.max(2, 0.032 * S);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(rx * 0.92, ry * 0.2);
+    ctx.lineTo(rx * 1.85, ry * 0.2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Water pouring off the mesh as it comes up.
+    if (p > 0.62 && p < 0.95) {
+      var drip = (p - 0.62) / 0.33;
+      ctx.strokeStyle = 'rgba(214,240,246,' + (0.5 * (1 - drip)).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(1, 0.010 * S);
+      for (var k = 0; k < 7; k++) {
+        var ox = (-0.22 + k * 0.075) * S;
+        var len = (0.10 + ((k * 0.37) % 1) * 0.16) * S * (1 - drip * 0.5);
+        ctx.beginPath();
+        ctx.moveTo(mx + ox, my + 0.10 * S);
+        ctx.lineTo(mx + ox, my + 0.10 * S + len);
+        ctx.stroke();
+      }
+    }
   };
 
   Renderer.prototype._drawRod = function (gx, gy) {
@@ -3582,11 +3783,11 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
         game.gathering = true;
         break;
       case 'r': case 'R':
-        if (game.phase !== 'fighting') game.resetDrift();
+        if (game.phase === 'fishing') game.resetDrift();
         break;
       case 'c': case 'C':
         // Keyboard-only fallback for anyone who cannot get the sweep to load.
-        if (game.phase !== 'fighting') game.cast();
+        if (game.phase === 'fishing') game.cast();
         break;
       case 'l': case 'L':
         el.lies.checked = !el.lies.checked;
@@ -3800,13 +4001,15 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   var PHASE_TEXT = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>sweep the rod up</strong> to set',
-    fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it'
+    fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it',
+    netting: 'Netting it…'
   };
 
   var PHASE_TEXT_TOUCH = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>flick up</strong> to set',
-    fighting: 'Fish on — <strong>press and hold</strong> to gather line, let go to give it'
+    fighting: 'Fish on — <strong>press and hold</strong> to gather line, let go to give it',
+    netting: 'Netting it…'
   };
 
   function setFill(node, pct, color) {
@@ -3820,7 +4023,8 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     var hud = game.hudState();
     var s = game.stats;
 
-    var cue = game.phase === 'fighting' ? 'fighting'
+    var cue = game.phase === 'netting' ? 'netting'
+            : game.phase === 'fighting' ? 'fighting'
             : (game.driftActive ? 'drifting' : 'idle');
     el.phase.innerHTML = game.paused
       ? 'Paused — <kbd>P</kbd> to resume'
