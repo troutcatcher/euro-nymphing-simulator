@@ -55,6 +55,7 @@ There are no cast or strike buttons. Everything is done with the rod.
 | Cast | sweep the rod: load back, drive upstream, stop |
 | Strike | sweep the rod tip up |
 | Gather line (while a fish is on) | hold the pointer button, or <kbd>Space</kbd> |
+| Sound | the speaker button, or <kbd>M</kbd> |
 | Full screen | the ⤢ button, or <kbd>F</kbd> |
 | Reset the rig under the tip | <kbd>R</kbd> |
 | Tuck cast (fallback) | <kbd>C</kbd> |
@@ -120,6 +121,24 @@ Slack does not just cost you the hookup — it costs you ever knowing there was 
 fish. That is the entire lesson of the technique, and here it is a measurement
 rather than a claim.
 
+## Sound
+
+Every sound is synthesised in the Web Audio graph — there are no audio files, so
+the page stays a single self-contained document. The river is two layers of
+filtered noise, a body of low rolling water and a brighter hiss of broken
+surface, and the balance between them comes from the beat: the boulder garden
+runs about four times the hiss of a glassy tailout.
+
+Everything else is fired by something that actually happened in the physics —
+flies breaking the film, a tungsten bead knocking a stone, line tearing through
+water with a fish on and its band opening up as the tippet loads.
+
+There is deliberately **no sound for a take**. You cannot hear a trout eat a
+nymph, and on the blind beats the sighter has to stay the only witness.
+
+Browsers will not start audio without a gesture, so the context is created on
+your first interaction and the on/off choice is remembered.
+
 ## What is actually simulated
 
 The behaviour is emergent, not scripted. Four models do the work.
@@ -150,6 +169,16 @@ under and ends when it comes out or reaches you; trout evaluate any fly that is
 in the water. An earlier version gated all of this behind a cast button, so flies
 flicked out by hand drifted through a lie completely ignored — the kind of bug
 that only a state machine can produce.
+
+**The picture** (`src/render.js`) is drawn to match the physics rather than to
+decorate it: light shafts through the surface and a caustic net crawling over the
+stones, air dragged under by broken water working its way back up, sediment
+hanging in the slow layer at the bed, rings spreading from wherever the tackle
+goes through the film, and a dimple of light where the leader pierces it. Trout
+are drawn from a fusiform profile with a travelling wave down the spine, so the
+whole body swims and a hooked one thrashes. The stones never move, so they are
+baked once into an offscreen canvas and blitted, which holds 58–61 fps on both
+desktop and a phone.
 
 **The fish** (`src/fish.js`) judge a fly the way a trout would: how close it is,
 how near the bed it is, and how far its velocity differs from the water around it.

@@ -118,6 +118,7 @@
 
     this.contact = 0;
     this.tension = 0;
+    this.bedHits = 0;      // beads knocking the stones since the last read
     this.anchor = null;      // set while a fish has the fly
     this.snagged = false;
     this.lineOut = c.leaderLength; // shortened by hand while playing a fish
@@ -284,10 +285,14 @@
 
       var bed = river.bedY(nd.x);
       if (nd.y < bed) {
+        var wasAbove = nd.py > bed;
         nd.y = bed;
         // Bed friction: this is the "tick, tick" you feel through the sighter.
         var slip = (nd.section === 'point' || nd.section === 'dropper') ? 0.55 : 0.85;
         nd.x = nd.px + (nd.x - nd.px) * slip;
+        if (wasAbove && (nd.section === 'point' || nd.section === 'dropper')) {
+          this.bedHits += Math.min(1, Math.abs(nd.py - bed) * 30);
+        }
       }
     }
   };

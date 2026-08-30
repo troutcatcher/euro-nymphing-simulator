@@ -11,8 +11,18 @@
   var clamp = EN.clamp;
 
   var SPECIES = [
-    { key: 'brown', name: 'Brown', body: '#a8813f', belly: '#e6d2a0', spot: '#4a2f14' },
-    { key: 'rainbow', name: 'Rainbow', body: '#7d8b96', belly: '#e8eef2', spot: '#2f3a44' }
+    {
+      key: 'brown', name: 'Brown',
+      back: '#4a3c1e', body: '#b08a3e', belly: '#e8d6a4',
+      spot: 'rgba(38,24,10,0.9)', redSpots: true, redSpot: 'rgba(196,72,42,0.9)',
+      fin: 'rgba(138,110,62,0.9)'
+    },
+    {
+      key: 'rainbow', name: 'Rainbow',
+      back: '#2f4a52', body: '#8c9aa4', belly: '#eef3f6',
+      spot: 'rgba(28,36,44,0.85)', redSpots: false, redSpot: 'rgba(190,80,90,0.8)',
+      fin: 'rgba(120,134,144,0.9)'
+    }
   ];
 
   function rand(a, b) { return a + Math.random() * (b - a); }

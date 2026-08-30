@@ -38,6 +38,8 @@
     this.tipLag = { x: 5.3, y: 1.9 };
     this.lift = 0;
     this.liftCooldown = 0;
+    this.tipSpeed = 0;
+    this.whooshCooldown = 0;
 
     this.rig = new EN.Rig({ leaderLength: 3.2, pointBead: 3.5, tippet: 0.14 });
     this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 1.0, this.tip.y - 1.2);
@@ -83,6 +85,7 @@
 
   Game.prototype.setPreset = function (key) {
     this.river.setPreset(key);
+    if (EN.audio) EN.audio.setRiver(this.river.preset);
     this.school = new EN.School(this.river);
     this.resetDrift();
     this.say(this.river.preset.name + ' — ' + this.river.preset.blurb, 'info');
@@ -174,6 +177,7 @@
         this.phaseTime = 0;
         this.driftActive = false;
         this.stats.hooked++;
+        if (EN.audio) EN.audio.hook();
         this.say('Hooked up — ' + fish.lengthCm + ' cm ' + fish.species.name.toLowerCase() + '!', 'good');
       } else {
         fish.state = 'holding';
@@ -242,6 +246,11 @@
     var sub = dt / steps;
     for (var s = 0; s < steps; s++) this.rig.step(sub, this.tip, this.river);
 
+    if (EN.audio && this.rig.bedHits > 0) {
+      EN.audio.tick(Math.min(1, this.rig.bedHits));
+      this.rig.bedHits = 0;
+    }
+
     this._updateFish(dt);
     if (this.phase !== 'fighting') this._trackDrift(dt);
   };
@@ -267,6 +276,15 @@
     // set still drives the hook home.
     this.lift = (this.tip.y - this.tipLag.y)
               + Math.max(0, this.tip.x - this.tipLag.x) * 0.5;
+
+    // Rod speed, for the sound of line moving through air.
+    var moved = Math.hypot(this.tip.x - this.tipLag.x, this.tip.y - this.tipLag.y);
+    this.tipSpeed = moved / LIFT_LAG;
+    this.whooshCooldown = Math.max(0, this.whooshCooldown - dt);
+    if (EN.audio && this.tipSpeed > 1.9 && this.whooshCooldown <= 0) {
+      this.whooshCooldown = 0.45;
+      EN.audio.whoosh(clamp((this.tipSpeed - 1.9) / 3, 0.2, 1));
+    }
 
     // Only a lift with the flies actually in the water can set a hook.
     if (this.liftStrike && this.phase !== 'fighting' && this._anyFlyWet() &&
@@ -332,6 +350,12 @@
         }
       } else if (f.state === 'hooked') {
         this._anchorTo(f);
+        if (EN.audio) {
+          EN.audio.setFight(f.tension || 0);
+          // A fish rolling on the surface makes a noise you can place.
+          if (f.y > -0.10 && !f._splashed) { f._splashed = 1; EN.audio.thrash(); }
+          if (f.y < -0.22) f._splashed = 0;
+        }
         var res = f.updateHooked(dt, this.tip, this.rig, this.tippetStrength(), this.netPoint);
         if (!res && f.stamina < 0.45) {
           if ((f.tension || 0) > 0.95) {
@@ -354,6 +378,10 @@
     this.dryTime = 0;
     this.rig.lineOut = this.rig.config.leaderLength;
 
+    if (EN.audio) {
+      EN.audio.setFight(null);
+      if (res.type === 'broke') EN.audio.snap(); else EN.audio.landed();
+    }
     if (res.type === 'landed') {
       this.stats.landed++;
       this.stats.bestFish = Math.max(this.stats.bestFish, fish.lengthCm);
@@ -394,6 +422,10 @@
       return;
     }
 
+    if (this.dryTime > 0.05 && EN.audio) {
+      // The flies just went in — how hard depends on how fast they were falling.
+      EN.audio.splash(clamp(Math.abs(p.vy) / 3, 0.25, 1));
+    }
     this.dryTime = 0;
     // Once the flies have swung past you they have to be put back upstream
     // before they count as a new drift.

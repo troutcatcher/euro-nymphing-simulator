@@ -18,7 +18,7 @@
    'tippet', 'dropper', 'lies', 'reset', 's-drifts', 's-takes', 's-hooked', 's-landed',
    's-best', 's-zone', 's-dead', 's-last',
    'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill',
-   'btn-full', 'hud-mini', 'rotate-hint', 'm-contact', 'm-contact-v', 'm-depth',
+   'btn-full', 'btn-sound', 'hud-mini', 'rotate-hint', 'm-contact', 'm-contact-v', 'm-depth',
    'm-depth-v', 'm-drag', 'm-drag-v', 'm-fight', 'm-tension', 'm-tension-v'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
@@ -82,6 +82,9 @@
       case 'f': case 'F':
         toggleFullscreen();
         break;
+      case 'm': case 'M':
+        toggleSound();
+        break;
       case '1': setPreset('riffle'); break;
       case '2': setPreset('pocket'); break;
       case '3': setPreset('tailout'); break;
@@ -93,6 +96,50 @@
   window.addEventListener('keyup', function (ev) {
     if (ev.key === ' ') game.gathering = false;
   });
+
+  // ---- sound ---------------------------------------------------------------
+
+  // Browsers will not let audio start without a gesture, so the context is
+  // created on the first interaction and the preference is remembered.
+  EN.audio = new EN.Audio();
+  var soundWanted = true;
+  try {
+    var saved = window.localStorage.getItem('en-sound');
+    if (saved !== null) soundWanted = saved === '1';
+  } catch (e) { /* private windows and blocked storage */ }
+
+  function paintSound() {
+    el['btn-sound'].textContent = soundWanted ? '🔊' : '🔈';
+    el['btn-sound'].classList.toggle('on', soundWanted && EN.audio.enabled);
+    el['btn-sound'].title = soundWanted ? 'Sound on (M)' : 'Sound off (M)';
+  }
+
+  function applySound() {
+    EN.audio.setEnabled(soundWanted);
+    if (EN.audio.enabled) EN.audio.setRiver(game.river.preset);
+    paintSound();
+  }
+
+  function toggleSound() {
+    soundWanted = !soundWanted;
+    try { window.localStorage.setItem('en-sound', soundWanted ? '1' : '0'); } catch (e) {}
+    applySound();
+  }
+
+  // The first gesture of any kind is what unlocks the audio context.
+  function unlockAudio() {
+    if (soundWanted && !EN.audio.enabled) applySound();
+    else EN.audio.resume();
+  }
+  window.addEventListener('pointerdown', unlockAudio, true);
+  window.addEventListener('keydown', unlockAudio, true);
+
+  el['btn-sound'].addEventListener('click', function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    toggleSound();
+  });
+  paintSound();
 
   // ---- full screen ---------------------------------------------------------
 
