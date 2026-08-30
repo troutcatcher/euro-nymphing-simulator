@@ -204,6 +204,25 @@
     this._burst({ from: 500, to: 1700, dur: 0.20, gain: 0.055 * s, q: 0.7, attack: 0.05 });
   };
 
+  /**
+   * The strike: leader and line tearing up through the water. Three layers —
+   * the heavy body of water being shifted, the spray coming off it, and a low
+   * thump for weight — sweeping up together so it lands as one wet rip.
+   */
+  Audio.prototype.strike = function (wetness) {
+    var w = clamp(wetness === undefined ? 0.7 : wetness, 0.2, 1);
+    // Body of water displaced by the leader.
+    this._burst({ brown: true, type: 'lowpass', from: 420, to: 2400,
+                  dur: 0.30, gain: 0.20 * w, q: 0.9, attack: 0.020 });
+    // Spray and hiss coming off it.
+    this._burst({ from: 1100, to: 3200, dur: 0.24, gain: 0.085 * w,
+                  q: 0.55, attack: 0.030 });
+    // Then the water closing behind it.
+    this._burst({ brown: true, type: 'lowpass', from: 1500, to: 300,
+                  dur: 0.26, gain: 0.11 * w, q: 0.7, attack: 0.10 });
+    this._tone(150, 62, 0.20, 0.055 * w);
+  };
+
   Audio.prototype.hook = function () {
     this._burst({ from: 900, to: 2600, dur: 0.13, gain: 0.09, q: 0.9, attack: 0.004 });
     this._tone(180, 90, 0.14, 0.045);

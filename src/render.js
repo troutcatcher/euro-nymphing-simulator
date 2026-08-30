@@ -21,6 +21,7 @@
     this._seedParticles(260);
     this.bubbles = [];
     this.rings = [];
+    this.droplets = [];
     this._wasWet = false;
   }
 
@@ -96,6 +97,7 @@
     this._vis = this.visibleRange();
     this._updateBubbles(dt);
     this._updateRings(dt);
+    this._updateDroplets(dt);
     for (var i = 0; i < this.particles.length; i++) {
       var p = this.particles[i];
       var bed = river.bedY(p.x);
@@ -144,6 +146,23 @@
     }
     this._wasWet = wet;
 
+    // A fish going out and coming back in throws a great deal more water.
+    var fishes = this.game.school.fish;
+    for (var f = 0; f < fishes.length; f++) {
+      var fi = fishes[f];
+      if (fi.state !== 'hooked') { fi._wasAir = false; continue; }
+      if (fi.airborne && !fi._wasAir) {
+        this.rings.push({ x: fi.x, r: 0.05, life: 1.3, speed: 1.9 });
+        this._spray(fi, 16);
+      }
+      if (!fi.airborne && fi._wasAir) {
+        this.rings.push({ x: fi.x, r: 0.06, life: 1.5, speed: 2.4 });
+        this.rings.push({ x: fi.x, r: 0.02, life: 1.2, speed: 1.3 });
+        this._spray(fi, 22);
+      }
+      fi._wasAir = fi.airborne;
+    }
+
     for (var i = this.rings.length - 1; i >= 0; i--) {
       var ring = this.rings[i];
       ring.r += ring.speed * dt;
@@ -151,6 +170,47 @@
       ring.life -= dt * 0.9;
       if (ring.life <= 0) this.rings.splice(i, 1);
     }
+  };
+
+  /** Water thrown off a fish clearing the surface. */
+  Renderer.prototype._spray = function (f, n) {
+    for (var i = 0; i < n; i++) {
+      var a = -Math.PI * (0.15 + Math.random() * 0.7);
+      var sp = 0.9 + Math.random() * 2.4;
+      this.droplets.push({
+        x: f.x, y: Math.max(-0.02, f.y),
+        vx: Math.cos(a) * sp * (Math.random() < 0.5 ? -1 : 1) * 0.6 + f.vx * 0.35,
+        vy: -Math.sin(a) * sp,
+        r: 0.004 + Math.random() * 0.008,
+        life: 0.5 + Math.random() * 0.6
+      });
+    }
+  };
+
+  Renderer.prototype._updateDroplets = function (dt) {
+    for (var i = this.droplets.length - 1; i >= 0; i--) {
+      var d = this.droplets[i];
+      d.vy -= 9.81 * dt;
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      d.life -= dt;
+      if (d.life <= 0 || d.y < -0.02) this.droplets.splice(i, 1);
+    }
+  };
+
+  Renderer.prototype._drawDroplets = function () {
+    if (!this.droplets.length) return;
+    var ctx = this.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < this.droplets.length; i++) {
+      var d = this.droplets[i];
+      ctx.fillStyle = 'rgba(226,244,248,' + Math.min(0.75, d.life).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(this.sx(d.x), this.sy(d.y), Math.max(0.8, d.r * this.scale), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   };
 
   Renderer.prototype.draw = function () {
@@ -168,6 +228,7 @@
     this._drawMurk();
     this._drawHookedFish();
     this._drawSurface();
+    this._drawDroplets();
     this._drawAngler();
     this._drawRig();
     this._drawDepthRuler();
@@ -540,9 +601,21 @@
 
   /** A hooked fish is up in the water and thrashing — you see that anywhere. */
   Renderer.prototype._drawHookedFish = function () {
+    var ctx = this.ctx;
     var fishes = this.game.school.fish;
     for (var i = 0; i < fishes.length; i++) {
-      if (fishes[i].state === 'hooked') this._drawOneFish(fishes[i], 1);
+      var f = fishes[i];
+      if (f.state !== 'hooked') continue;
+      if (f.airborne) {
+        // Clear of the water it catches the light and throws a shadow of spray.
+        ctx.save();
+        ctx.shadowColor = 'rgba(206,236,244,0.55)';
+        ctx.shadowBlur = 14;
+        this._drawOneFish(f, 1);
+        ctx.restore();
+      } else {
+        this._drawOneFish(f, 1);
+      }
     }
   };
 

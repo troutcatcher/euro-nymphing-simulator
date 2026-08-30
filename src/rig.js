@@ -50,7 +50,7 @@
     dropperBead: 2.5,
     dropperAt: 0.76,     // fraction along the leader
     dropperTag: 0.15,    // tag length, metres
-    tippet: 0.14,        // mm
+    tippet: 0.18,        // mm
     useDropper: true
   };
 
@@ -82,8 +82,9 @@
         waterRate = 115; airRate = 1.5;
       } else if (f > c.sighterTo) {
         section = 'tippet';
-        // Thinner tippet cuts the current better -> less belly below the sighter.
-        waterRate = 55 * (0.14 / c.tippet);
+        // Thicker tippet catches more water, so it bellies more and drags the
+        // point fly with it. Going finer buys a better drift and costs strength.
+        waterRate = 55 * (c.tippet / 0.14);
         airRate = 0.8;
       }
       var isPoint = (i === n - 1);

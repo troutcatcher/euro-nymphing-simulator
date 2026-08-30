@@ -57,6 +57,12 @@
     this.surgeTimer = rand(0.4, 1.4);
     this.slackTime = 0;
     this.tippetDamage = 0;
+
+    this.behaviour = 'bore';
+    this.runDir = 1;
+    this.airborne = false;
+    this.jumpCooldown = 0;
+    this.jumpEvent = null;     // 'launch' | 'land', drained by the game
   }
 
   /** The point in front of the fish where it will actually intercept a fly. */
@@ -190,6 +196,35 @@
     this.surgeTimer = 0.5;
     this.slackTime = 0;
     this.tippetDamage = 0;
+    this.behaviour = 'run';
+    this.runDir = Math.random() < 0.5 ? -1 : 1;
+    this.airborne = false;
+    this.jumpCooldown = 0.6;
+    this.jumpEvent = null;
+  };
+
+  /**
+   * What the fish does next. A fresh one runs and jumps; as it tires it bores
+   * deep and finally wallows on the top. Choosing a behaviour, rather than
+   * always swimming away from the rod, is what stops a fight being one long tug.
+   */
+  Fish.prototype._pickBehaviour = function () {
+    var s = this.stamina;
+    var r = Math.random();
+    if (s > 0.6) {
+      if (r < 0.30) return 'run';
+      if (r < 0.60) return 'jump';
+      if (r < 0.84) return 'bore';
+      return 'hold';
+    }
+    if (s > 0.32) {
+      if (r < 0.24) return 'run';
+      if (r < 0.42) return 'jump';
+      if (r < 0.74) return 'bore';
+      return 'hold';
+    }
+    if (r < 0.50) return 'wallow';
+    return 'hold';
   };
 
   /**
@@ -199,10 +234,16 @@
   Fish.prototype.updateHooked = function (dt, tip, rig, tippetStrength, net) {
     var river = this.river;
 
+    this.jumpEvent = null;
+    this.jumpCooldown = Math.max(0, this.jumpCooldown - dt);
+
     this.surgeTimer -= dt;
     if (this.surgeTimer <= 0) {
-      this.surge = rand(0.35, 1) * (0.4 + 0.6 * this.stamina);
-      this.surgeTimer = rand(0.6, 1.9);
+      this.surge = rand(0.45, 1) * (0.4 + 0.6 * this.stamina);
+      this.surgeTimer = rand(0.7, 2.1);
+      this.behaviour = this._pickBehaviour();
+      if (this.behaviour === 'run') this.runDir = Math.random() < 0.45 ? -1 : 1;
+      if (this.behaviour === 'jump' && this.jumpCooldown > 0) this.behaviour = 'run';
     }
 
     var dx = this.x - tip.x, dy = this.y - tip.y;
@@ -211,27 +252,81 @@
 
     var power = (0.55 + 0.50 * Math.sqrt(this.mass)) * (0.10 + 0.90 * this.stamina) * this.surge;
     var u = river.speedAt(this.x, this.y);
+    var wantX, wantY;
 
-    // Wants to bore away from the pressure, downward, and use the current.
-    var wantX = awayX * power * 1.2 + u * 0.5 - 0.2 * power;
-    var wantY = awayY * power * 0.45 - power * 0.5;
+    if (this.airborne) {
+      // Clear of the water: nothing but gravity and whatever the leader does.
+      this.vy -= 9.81 * dt;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      if (this.y <= -0.03 && this.vy < 0) {
+        this.airborne = false;
+        this.jumpEvent = 'land';
+        this.vy = -0.5;
+        this.behaviour = 'bore';
+      }
+    } else {
+      switch (this.behaviour) {
+        case 'run':
+          // A committed run in one direction, using or fighting the current.
+          wantX = this.runDir * power * 2.3 + u * 0.6;
+          wantY = -power * 0.30 + awayY * power * 0.2;
+          break;
+        case 'hold':
+          // Sulking: nose into the flow and hold station, deep, giving nothing
+          // away. It does not drift down onto the rod, which would be slack.
+          wantX = -power * 0.35;
+          wantY = -power * 0.45;
+          break;
+        case 'wallow':
+          // Beaten and rolling on the top.
+          wantX = awayX * power * 0.7 + u * 0.4;
+          wantY = power * 0.55;
+          break;
+        case 'jump':
+          // Drive for the surface, then leave it.
+          wantX = this.runDir * power * 1.1 + u * 0.5;
+          wantY = power * 2.6;
+          if (this.y > -0.10 && this.jumpCooldown <= 0) {
+            this.airborne = true;
+            this.jumpEvent = 'launch';
+            this.jumpCooldown = rand(1.8, 3.2);
+            this.vy = 2.3 + Math.random() * 1.5;
+            this.vx = this.runDir * (0.5 + Math.random() * 1.2) + u * 0.4;
+            this.behaviour = 'bore';
+          }
+          break;
+        default:
+          // Boring away from the pressure, down, using the current.
+          wantX = awayX * power * 1.4 + u * 0.5 - 0.2 * power;
+          wantY = awayY * power * 0.45 - power * 0.5;
+      }
 
-    // A spent fish stops boring away and just gets shepherded in.
-    if (this.stamina < 0.25) {
-      var give = this.stamina / 0.25;
-      wantX = wantX * (0.25 + 0.75 * give) + u * 0.3 * (1 - give);
-      wantY *= (0.25 + 0.75 * give);
+      if (this.airborne) {
+        // Launched this frame: carry the takeoff velocity and skip the surface
+        // clamp, which would otherwise cancel the jump the instant it started.
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+      } else {
+        // A spent fish stops boring away and just gets shepherded in.
+        if (this.stamina < 0.25) {
+          var give = this.stamina / 0.25;
+          wantX = wantX * (0.25 + 0.75 * give) + u * 0.3 * (1 - give);
+          wantY *= (0.25 + 0.75 * give);
+        }
+
+        this.vx += (wantX - this.vx) * Math.min(1, dt * 5);
+        this.vy += (wantY - this.vy) * Math.min(1, dt * 5);
+
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+
+        var bed = river.bedY(this.x) + 0.05;
+        if (this.y < bed) { this.y = bed; this.vy = Math.max(0, this.vy); }
+        if (this.y > -0.04) { this.y = -0.04; this.vy = Math.min(0, this.vy); }
+      }
     }
 
-    this.vx += (wantX - this.vx) * Math.min(1, dt * 5);
-    this.vy += (wantY - this.vy) * Math.min(1, dt * 5);
-
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
-
-    var bed = river.bedY(this.x) + 0.05;
-    if (this.y < bed) { this.y = bed; this.vy = Math.max(0, this.vy); }
-    if (this.y > -0.04) { this.y = -0.04; this.vy = Math.min(0, this.vy); }
     this.x = clamp(this.x, EN.WORLD.xMin + 0.2, EN.WORLD.xMax - 0.2);
 
     // The rod and the leader are a spring, not a wall. Load builds over about
@@ -269,14 +364,14 @@
 
     // A hook only falls out of a green fish. Once it is beaten and alongside
     // you, a slack moment is not a disaster.
-    if (tension < 0.05 && this.stamina > 0.40) this.slackTime += dt;
+    if (tension < 0.05 && this.stamina > 0.40) this.slackTime += dt * (this.airborne ? 2.2 : 1);
     else this.slackTime = 0;
 
     var result = null;
     if (this.tippetDamage >= 1) {
       this.state = 'lost';
       result = { type: 'broke' };
-    } else if (this.slackTime > 1.8) {
+    } else if (this.slackTime > 2.6) {
       this.state = 'lost';
       result = { type: 'pulled' };
     } else if (this.stamina < 0.35 && net &&

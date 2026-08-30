@@ -41,7 +41,7 @@
     this.tipSpeed = 0;
     this.whooshCooldown = 0;
 
-    this.rig = new EN.Rig({ leaderLength: 3.2, pointBead: 3.5, tippet: 0.14 });
+    this.rig = new EN.Rig({ leaderLength: 3.2, pointBead: 3.5, tippet: 0.18 });
     this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 1.0, this.tip.y - 1.2);
 
     // Only two states now. Everything that is not playing a fish is fishing,
@@ -161,6 +161,13 @@
 
   Game.prototype.strike = function () {
     if (this.phase === 'fighting') return;
+
+    if (EN.audio) {
+      // How much of the rig is under water is how much of it you hear move.
+      var nodes = this.rig.nodes, wet = 0;
+      for (var w = 0; w < nodes.length; w++) if (nodes[w].y < 0) wet++;
+      EN.audio.strike(0.25 + 0.75 * (wet / nodes.length));
+    }
 
     var fish = this.school.active();
     if (fish && fish.state === 'taken') {
@@ -351,11 +358,16 @@
       } else if (f.state === 'hooked') {
         this._anchorTo(f);
         if (EN.audio) {
-          EN.audio.setFight(f.tension || 0);
+          EN.audio.setFight(f.airborne ? 0 : (f.tension || 0));
+          if (f.jumpEvent === 'launch') EN.audio.thrash();
+          else if (f.jumpEvent === 'land') EN.audio.splash(1);
           // A fish rolling on the surface makes a noise you can place.
-          if (f.y > -0.10 && !f._splashed) { f._splashed = 1; EN.audio.thrash(); }
+          else if (!f.airborne && f.y > -0.10 && !f._splashed) {
+            f._splashed = 1; EN.audio.thrash();
+          }
           if (f.y < -0.22) f._splashed = 0;
         }
+        if (f.jumpEvent === 'launch') this.say(fish_jumped(f), 'alert');
         var res = f.updateHooked(dt, this.tip, this.rig, this.tippetStrength(), this.netPoint);
         if (!res && f.stamina < 0.45) {
           if ((f.tension || 0) > 0.95) {
@@ -368,6 +380,10 @@
       }
     }
   };
+
+  function fish_jumped(f) {
+    return f.lengthCm + ' cm ' + f.species.name.toLowerCase() + ' — airborne!';
+  }
 
   Game.prototype._endFight = function (fish, res) {
     this.rig.anchor = null;

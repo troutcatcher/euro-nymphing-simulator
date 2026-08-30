@@ -457,9 +457,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
         <select id="tippet">
           <option value="0.10">0.10 mm (7X)</option>
           <option value="0.12">0.12 mm (6X)</option>
-          <option value="0.14" selected>0.14 mm (5X)</option>
+          <option value="0.14">0.14 mm (5X)</option>
           <option value="0.16">0.16 mm (4X)</option>
-          <option value="0.18">0.18 mm (3X)</option>
+          <option value="0.18" selected>0.18 mm (3X)</option>
         </select>
       </label>
       <label class="check"><input type="checkbox" id="dropper" checked> Fish a dropper on a tag</label>
@@ -718,6 +718,25 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   Audio.prototype.whoosh = function (strength) {
     var s = clamp(strength || 0.5, 0.15, 1);
     this._burst({ from: 500, to: 1700, dur: 0.20, gain: 0.055 * s, q: 0.7, attack: 0.05 });
+  };
+
+  /**
+   * The strike: leader and line tearing up through the water. Three layers —
+   * the heavy body of water being shifted, the spray coming off it, and a low
+   * thump for weight — sweeping up together so it lands as one wet rip.
+   */
+  Audio.prototype.strike = function (wetness) {
+    var w = clamp(wetness === undefined ? 0.7 : wetness, 0.2, 1);
+    // Body of water displaced by the leader.
+    this._burst({ brown: true, type: 'lowpass', from: 420, to: 2400,
+                  dur: 0.30, gain: 0.20 * w, q: 0.9, attack: 0.020 });
+    // Spray and hiss coming off it.
+    this._burst({ from: 1100, to: 3200, dur: 0.24, gain: 0.085 * w,
+                  q: 0.55, attack: 0.030 });
+    // Then the water closing behind it.
+    this._burst({ brown: true, type: 'lowpass', from: 1500, to: 300,
+                  dur: 0.26, gain: 0.11 * w, q: 0.7, attack: 0.10 });
+    this._tone(150, 62, 0.20, 0.055 * w);
   };
 
   Audio.prototype.hook = function () {
@@ -1085,7 +1104,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     dropperBead: 2.5,
     dropperAt: 0.76,     // fraction along the leader
     dropperTag: 0.15,    // tag length, metres
-    tippet: 0.14,        // mm
+    tippet: 0.18,        // mm
     useDropper: true
   };
 
@@ -1117,8 +1136,9 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
         waterRate = 115; airRate = 1.5;
       } else if (f > c.sighterTo) {
         section = 'tippet';
-        // Thinner tippet cuts the current better -> less belly below the sighter.
-        waterRate = 55 * (0.14 / c.tippet);
+        // Thicker tippet catches more water, so it bellies more and drags the
+        // point fly with it. Going finer buys a better drift and costs strength.
+        waterRate = 55 * (c.tippet / 0.14);
         airRate = 0.8;
       }
       var isPoint = (i === n - 1);
@@ -1428,6 +1448,12 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.surgeTimer = rand(0.4, 1.4);
     this.slackTime = 0;
     this.tippetDamage = 0;
+
+    this.behaviour = 'bore';
+    this.runDir = 1;
+    this.airborne = false;
+    this.jumpCooldown = 0;
+    this.jumpEvent = null;     // 'launch' | 'land', drained by the game
   }
 
   /** The point in front of the fish where it will actually intercept a fly. */
@@ -1561,6 +1587,35 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.surgeTimer = 0.5;
     this.slackTime = 0;
     this.tippetDamage = 0;
+    this.behaviour = 'run';
+    this.runDir = Math.random() < 0.5 ? -1 : 1;
+    this.airborne = false;
+    this.jumpCooldown = 0.6;
+    this.jumpEvent = null;
+  };
+
+  /**
+   * What the fish does next. A fresh one runs and jumps; as it tires it bores
+   * deep and finally wallows on the top. Choosing a behaviour, rather than
+   * always swimming away from the rod, is what stops a fight being one long tug.
+   */
+  Fish.prototype._pickBehaviour = function () {
+    var s = this.stamina;
+    var r = Math.random();
+    if (s > 0.6) {
+      if (r < 0.30) return 'run';
+      if (r < 0.60) return 'jump';
+      if (r < 0.84) return 'bore';
+      return 'hold';
+    }
+    if (s > 0.32) {
+      if (r < 0.24) return 'run';
+      if (r < 0.42) return 'jump';
+      if (r < 0.74) return 'bore';
+      return 'hold';
+    }
+    if (r < 0.50) return 'wallow';
+    return 'hold';
   };
 
   /**
@@ -1570,10 +1625,16 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   Fish.prototype.updateHooked = function (dt, tip, rig, tippetStrength, net) {
     var river = this.river;
 
+    this.jumpEvent = null;
+    this.jumpCooldown = Math.max(0, this.jumpCooldown - dt);
+
     this.surgeTimer -= dt;
     if (this.surgeTimer <= 0) {
-      this.surge = rand(0.35, 1) * (0.4 + 0.6 * this.stamina);
-      this.surgeTimer = rand(0.6, 1.9);
+      this.surge = rand(0.45, 1) * (0.4 + 0.6 * this.stamina);
+      this.surgeTimer = rand(0.7, 2.1);
+      this.behaviour = this._pickBehaviour();
+      if (this.behaviour === 'run') this.runDir = Math.random() < 0.45 ? -1 : 1;
+      if (this.behaviour === 'jump' && this.jumpCooldown > 0) this.behaviour = 'run';
     }
 
     var dx = this.x - tip.x, dy = this.y - tip.y;
@@ -1582,27 +1643,81 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
     var power = (0.55 + 0.50 * Math.sqrt(this.mass)) * (0.10 + 0.90 * this.stamina) * this.surge;
     var u = river.speedAt(this.x, this.y);
+    var wantX, wantY;
 
-    // Wants to bore away from the pressure, downward, and use the current.
-    var wantX = awayX * power * 1.2 + u * 0.5 - 0.2 * power;
-    var wantY = awayY * power * 0.45 - power * 0.5;
+    if (this.airborne) {
+      // Clear of the water: nothing but gravity and whatever the leader does.
+      this.vy -= 9.81 * dt;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      if (this.y <= -0.03 && this.vy < 0) {
+        this.airborne = false;
+        this.jumpEvent = 'land';
+        this.vy = -0.5;
+        this.behaviour = 'bore';
+      }
+    } else {
+      switch (this.behaviour) {
+        case 'run':
+          // A committed run in one direction, using or fighting the current.
+          wantX = this.runDir * power * 2.3 + u * 0.6;
+          wantY = -power * 0.30 + awayY * power * 0.2;
+          break;
+        case 'hold':
+          // Sulking: nose into the flow and hold station, deep, giving nothing
+          // away. It does not drift down onto the rod, which would be slack.
+          wantX = -power * 0.35;
+          wantY = -power * 0.45;
+          break;
+        case 'wallow':
+          // Beaten and rolling on the top.
+          wantX = awayX * power * 0.7 + u * 0.4;
+          wantY = power * 0.55;
+          break;
+        case 'jump':
+          // Drive for the surface, then leave it.
+          wantX = this.runDir * power * 1.1 + u * 0.5;
+          wantY = power * 2.6;
+          if (this.y > -0.10 && this.jumpCooldown <= 0) {
+            this.airborne = true;
+            this.jumpEvent = 'launch';
+            this.jumpCooldown = rand(1.8, 3.2);
+            this.vy = 2.3 + Math.random() * 1.5;
+            this.vx = this.runDir * (0.5 + Math.random() * 1.2) + u * 0.4;
+            this.behaviour = 'bore';
+          }
+          break;
+        default:
+          // Boring away from the pressure, down, using the current.
+          wantX = awayX * power * 1.4 + u * 0.5 - 0.2 * power;
+          wantY = awayY * power * 0.45 - power * 0.5;
+      }
 
-    // A spent fish stops boring away and just gets shepherded in.
-    if (this.stamina < 0.25) {
-      var give = this.stamina / 0.25;
-      wantX = wantX * (0.25 + 0.75 * give) + u * 0.3 * (1 - give);
-      wantY *= (0.25 + 0.75 * give);
+      if (this.airborne) {
+        // Launched this frame: carry the takeoff velocity and skip the surface
+        // clamp, which would otherwise cancel the jump the instant it started.
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+      } else {
+        // A spent fish stops boring away and just gets shepherded in.
+        if (this.stamina < 0.25) {
+          var give = this.stamina / 0.25;
+          wantX = wantX * (0.25 + 0.75 * give) + u * 0.3 * (1 - give);
+          wantY *= (0.25 + 0.75 * give);
+        }
+
+        this.vx += (wantX - this.vx) * Math.min(1, dt * 5);
+        this.vy += (wantY - this.vy) * Math.min(1, dt * 5);
+
+        this.x += this.vx * dt;
+        this.y += this.vy * dt;
+
+        var bed = river.bedY(this.x) + 0.05;
+        if (this.y < bed) { this.y = bed; this.vy = Math.max(0, this.vy); }
+        if (this.y > -0.04) { this.y = -0.04; this.vy = Math.min(0, this.vy); }
+      }
     }
 
-    this.vx += (wantX - this.vx) * Math.min(1, dt * 5);
-    this.vy += (wantY - this.vy) * Math.min(1, dt * 5);
-
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
-
-    var bed = river.bedY(this.x) + 0.05;
-    if (this.y < bed) { this.y = bed; this.vy = Math.max(0, this.vy); }
-    if (this.y > -0.04) { this.y = -0.04; this.vy = Math.min(0, this.vy); }
     this.x = clamp(this.x, EN.WORLD.xMin + 0.2, EN.WORLD.xMax - 0.2);
 
     // The rod and the leader are a spring, not a wall. Load builds over about
@@ -1640,14 +1755,14 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
     // A hook only falls out of a green fish. Once it is beaten and alongside
     // you, a slack moment is not a disaster.
-    if (tension < 0.05 && this.stamina > 0.40) this.slackTime += dt;
+    if (tension < 0.05 && this.stamina > 0.40) this.slackTime += dt * (this.airborne ? 2.2 : 1);
     else this.slackTime = 0;
 
     var result = null;
     if (this.tippetDamage >= 1) {
       this.state = 'lost';
       result = { type: 'broke' };
-    } else if (this.slackTime > 1.8) {
+    } else if (this.slackTime > 2.6) {
       this.state = 'lost';
       result = { type: 'pulled' };
     } else if (this.stamina < 0.35 && net &&
@@ -1735,7 +1850,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this.tipSpeed = 0;
     this.whooshCooldown = 0;
 
-    this.rig = new EN.Rig({ leaderLength: 3.2, pointBead: 3.5, tippet: 0.14 });
+    this.rig = new EN.Rig({ leaderLength: 3.2, pointBead: 3.5, tippet: 0.18 });
     this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 1.0, this.tip.y - 1.2);
 
     // Only two states now. Everything that is not playing a fish is fishing,
@@ -1855,6 +1970,13 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
   Game.prototype.strike = function () {
     if (this.phase === 'fighting') return;
+
+    if (EN.audio) {
+      // How much of the rig is under water is how much of it you hear move.
+      var nodes = this.rig.nodes, wet = 0;
+      for (var w = 0; w < nodes.length; w++) if (nodes[w].y < 0) wet++;
+      EN.audio.strike(0.25 + 0.75 * (wet / nodes.length));
+    }
 
     var fish = this.school.active();
     if (fish && fish.state === 'taken') {
@@ -2045,11 +2167,16 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       } else if (f.state === 'hooked') {
         this._anchorTo(f);
         if (EN.audio) {
-          EN.audio.setFight(f.tension || 0);
+          EN.audio.setFight(f.airborne ? 0 : (f.tension || 0));
+          if (f.jumpEvent === 'launch') EN.audio.thrash();
+          else if (f.jumpEvent === 'land') EN.audio.splash(1);
           // A fish rolling on the surface makes a noise you can place.
-          if (f.y > -0.10 && !f._splashed) { f._splashed = 1; EN.audio.thrash(); }
+          else if (!f.airborne && f.y > -0.10 && !f._splashed) {
+            f._splashed = 1; EN.audio.thrash();
+          }
           if (f.y < -0.22) f._splashed = 0;
         }
+        if (f.jumpEvent === 'launch') this.say(fish_jumped(f), 'alert');
         var res = f.updateHooked(dt, this.tip, this.rig, this.tippetStrength(), this.netPoint);
         if (!res && f.stamina < 0.45) {
           if ((f.tension || 0) > 0.95) {
@@ -2062,6 +2189,10 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       }
     }
   };
+
+  function fish_jumped(f) {
+    return f.lengthCm + ' cm ' + f.species.name.toLowerCase() + ' — airborne!';
+  }
 
   Game.prototype._endFight = function (fish, res) {
     this.rig.anchor = null;
@@ -2241,6 +2372,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this._seedParticles(260);
     this.bubbles = [];
     this.rings = [];
+    this.droplets = [];
     this._wasWet = false;
   }
 
@@ -2316,6 +2448,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this._vis = this.visibleRange();
     this._updateBubbles(dt);
     this._updateRings(dt);
+    this._updateDroplets(dt);
     for (var i = 0; i < this.particles.length; i++) {
       var p = this.particles[i];
       var bed = river.bedY(p.x);
@@ -2364,6 +2497,23 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     }
     this._wasWet = wet;
 
+    // A fish going out and coming back in throws a great deal more water.
+    var fishes = this.game.school.fish;
+    for (var f = 0; f < fishes.length; f++) {
+      var fi = fishes[f];
+      if (fi.state !== 'hooked') { fi._wasAir = false; continue; }
+      if (fi.airborne && !fi._wasAir) {
+        this.rings.push({ x: fi.x, r: 0.05, life: 1.3, speed: 1.9 });
+        this._spray(fi, 16);
+      }
+      if (!fi.airborne && fi._wasAir) {
+        this.rings.push({ x: fi.x, r: 0.06, life: 1.5, speed: 2.4 });
+        this.rings.push({ x: fi.x, r: 0.02, life: 1.2, speed: 1.3 });
+        this._spray(fi, 22);
+      }
+      fi._wasAir = fi.airborne;
+    }
+
     for (var i = this.rings.length - 1; i >= 0; i--) {
       var ring = this.rings[i];
       ring.r += ring.speed * dt;
@@ -2371,6 +2521,47 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
       ring.life -= dt * 0.9;
       if (ring.life <= 0) this.rings.splice(i, 1);
     }
+  };
+
+  /** Water thrown off a fish clearing the surface. */
+  Renderer.prototype._spray = function (f, n) {
+    for (var i = 0; i < n; i++) {
+      var a = -Math.PI * (0.15 + Math.random() * 0.7);
+      var sp = 0.9 + Math.random() * 2.4;
+      this.droplets.push({
+        x: f.x, y: Math.max(-0.02, f.y),
+        vx: Math.cos(a) * sp * (Math.random() < 0.5 ? -1 : 1) * 0.6 + f.vx * 0.35,
+        vy: -Math.sin(a) * sp,
+        r: 0.004 + Math.random() * 0.008,
+        life: 0.5 + Math.random() * 0.6
+      });
+    }
+  };
+
+  Renderer.prototype._updateDroplets = function (dt) {
+    for (var i = this.droplets.length - 1; i >= 0; i--) {
+      var d = this.droplets[i];
+      d.vy -= 9.81 * dt;
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      d.life -= dt;
+      if (d.life <= 0 || d.y < -0.02) this.droplets.splice(i, 1);
+    }
+  };
+
+  Renderer.prototype._drawDroplets = function () {
+    if (!this.droplets.length) return;
+    var ctx = this.ctx;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < this.droplets.length; i++) {
+      var d = this.droplets[i];
+      ctx.fillStyle = 'rgba(226,244,248,' + Math.min(0.75, d.life).toFixed(3) + ')';
+      ctx.beginPath();
+      ctx.arc(this.sx(d.x), this.sy(d.y), Math.max(0.8, d.r * this.scale), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   };
 
   Renderer.prototype.draw = function () {
@@ -2388,6 +2579,7 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
     this._drawMurk();
     this._drawHookedFish();
     this._drawSurface();
+    this._drawDroplets();
     this._drawAngler();
     this._drawRig();
     this._drawDepthRuler();
@@ -2760,9 +2952,21 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
 
   /** A hooked fish is up in the water and thrashing — you see that anywhere. */
   Renderer.prototype._drawHookedFish = function () {
+    var ctx = this.ctx;
     var fishes = this.game.school.fish;
     for (var i = 0; i < fishes.length; i++) {
-      if (fishes[i].state === 'hooked') this._drawOneFish(fishes[i], 1);
+      var f = fishes[i];
+      if (f.state !== 'hooked') continue;
+      if (f.airborne) {
+        // Clear of the water it catches the light and throws a shadow of spray.
+        ctx.save();
+        ctx.shadowColor = 'rgba(206,236,244,0.55)';
+        ctx.shadowBlur = 14;
+        this._drawOneFish(f, 1);
+        ctx.restore();
+      } else {
+        this._drawOneFish(f, 1);
+      }
     }
   };
 

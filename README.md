@@ -130,8 +130,11 @@ surface, and the balance between them comes from the beat: the boulder garden
 runs about four times the hiss of a glassy tailout.
 
 Everything else is fired by something that actually happened in the physics —
-flies breaking the film, a tungsten bead knocking a stone, line tearing through
-water with a fish on and its band opening up as the tippet loads.
+the strike, as leader and line tear up through the water (three layers sweeping
+together, scaled by how much of the rig is actually submerged), flies breaking
+the film, a tungsten bead knocking a stone, a fish clearing the surface and
+coming back down, line tearing through water with its band opening as the tippet
+loads.
 
 There is deliberately **no sound for a take**. You cannot hear a trout eat a
 nymph, and on the blind beats the sighter has to stay the only witness.
@@ -195,8 +198,13 @@ react. With ordinary contact (0.75–0.85) and an ordinary reaction (0.45–0.60
 you convert 57–79% of takes; with a slack leader (0.65) that falls to about 45%,
 and with a genuinely tight one (0.95) it reaches 85–90%.
 
-**The fight** treats rod and leader as a spring with about half a metre of give,
-so load builds instead of snapping instantly. Hold on through a surge and you pop
+**The fight** gives the fish something to decide. Every couple of seconds it
+picks a behaviour weighted by how much it has left: a fresh fish runs — upstream
+or down, committed — and jumps; a tiring one bores deep or sulks with its nose in
+the flow; a beaten one wallows on the top. A jump is genuinely ballistic, clear
+of the water at up to half a metre, and slack while it is up there is twice as
+likely to lose you the hook. Rod and leader are a spring with about half a metre
+of give, so load builds instead of snapping instantly. Hold on through a surge and you pop
 the tippet; let go and line slips under load. A fish is landed at your feet, not
 at the rod tip, which is why you have to drop the rod at the end.
 
@@ -224,9 +232,10 @@ console.
 The numbers worth playing with:
 
 - `src/river.js` — `PRESETS`: bed profiles, `flow`, `spook`, and where the lies are.
-- `src/rig.js` — `DEFAULTS` and `beadSinkRate()`.
-- `src/fish.js` — the interest rate in `updateHolding`, `hookChance`, and the
-  fight constants in `updateHooked`.
+- `src/rig.js` — `DEFAULTS` (tippet defaults to 0.18 mm) and `beadSinkRate()`.
+- `src/fish.js` — the interest rate in `updateHolding`, `hookChance`, the
+  behaviour weights in `_pickBehaviour`, and the fight constants in
+  `updateHooked`.
 - `src/game.js` — drift scoring thresholds, the coaching rules in `_scoreDrift`,
   and `LIFT_LAG` / `LIFT_DEFAULT` for hookset detection.
 
