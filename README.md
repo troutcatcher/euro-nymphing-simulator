@@ -130,11 +130,17 @@ surface, and the balance between them comes from the beat: the boulder garden
 runs about four times the hiss of a glassy tailout.
 
 Everything else is fired by something that actually happened in the physics —
-the strike, as leader and line tear up through the water (three layers sweeping
-together, scaled by how much of the rig is actually submerged), flies breaking
-the film, a tungsten bead knocking a stone, a fish clearing the surface and
-coming back down, line tearing through water with its band opening as the tippet
-loads.
+the strike, flies breaking the film, a tungsten bead knocking a stone, a fish
+clearing the surface and coming back down, line tearing through water with its
+band opening as the tippet loads.
+
+The strike is two narrow resonances a little over an octave apart, both drifting
+downward, over a lowpassed wash that opens up underneath. The pair of formants
+is what makes it read as tubed and vowel-like — water moving inside something
+rather than splashing off the top of it — and it scales with how much of the rig
+is actually submerged. It was picked by ear from twenty candidates built by
+different synthesis methods, all level-matched so the choice was about character
+rather than volume.
 
 There is deliberately **no sound for a take**. You cannot hear a trout eat a
 nymph, and on the blind beats the sighter has to stay the only witness.

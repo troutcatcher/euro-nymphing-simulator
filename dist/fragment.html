@@ -721,22 +721,26 @@ section.dim { opacity: 0.34; transition: opacity 180ms ease; }
   };
 
   /**
-   * The strike: leader and line tearing up through the water. Three layers —
-   * the heavy body of water being shifted, the spray coming off it, and a low
-   * thump for weight — sweeping up together so it lands as one wet rip.
+   * The strike — "Hollow pull". Two narrow resonances an octave and a bit apart,
+   * both drifting downward, over a lowpassed wash that opens up underneath.
+   * The pair of formants is what makes it read as tubed and vowel-like rather
+   * than as plain hiss: water moving inside something rather than splashing off
+   * the top of it.
+   *
+   * LEVEL is the trim this recipe was auditioned at, so the sound sits at the
+   * same loudness as the rest of the mix.
    */
+  var STRIKE_LEVEL = 3.47;
+
   Audio.prototype.strike = function (wetness) {
-    var w = clamp(wetness === undefined ? 0.7 : wetness, 0.2, 1);
-    // Body of water displaced by the leader.
-    this._burst({ brown: true, type: 'lowpass', from: 420, to: 2400,
-                  dur: 0.30, gain: 0.20 * w, q: 0.9, attack: 0.020 });
-    // Spray and hiss coming off it.
-    this._burst({ from: 1100, to: 3200, dur: 0.24, gain: 0.085 * w,
-                  q: 0.55, attack: 0.030 });
-    // Then the water closing behind it.
-    this._burst({ brown: true, type: 'lowpass', from: 1500, to: 300,
-                  dur: 0.26, gain: 0.11 * w, q: 0.7, attack: 0.10 });
-    this._tone(150, 62, 0.20, 0.055 * w);
+    var w = clamp(wetness === undefined ? 0.7 : wetness, 0.2, 1) * STRIKE_LEVEL;
+    // Lower formant: the body of the sound.
+    this._burst({ from: 420, to: 300, dur: 0.34, gain: 0.20 * w, q: 18, attack: 0.02 });
+    // Upper formant: the vowel on top of it.
+    this._burst({ from: 1150, to: 780, dur: 0.30, gain: 0.10 * w, q: 16, attack: 0.03 });
+    // The wash of water underneath, opening as the resonances fall.
+    this._burst({ brown: true, type: 'lowpass', from: 400, to: 900,
+                  dur: 0.28, gain: 0.09 * w, q: 0.8, attack: 0.05 });
   };
 
   Audio.prototype.hook = function () {
