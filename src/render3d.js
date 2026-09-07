@@ -912,8 +912,14 @@
     var rig = g.rig;
     var hud = g.hudState();
 
-    // Rod: same quadratic bend as the 2D view, swept into a tapered tube.
-    var gx = g.grip.x, gy = g.grip.y, tx = g.tip.x, ty = g.tip.y;
+    // The physics keeps the hand at one fixed point and moves only the tip,
+    // which from the side reads as the rod pivoting about its butt. A real
+    // stroke is mostly the hand travelling back and forth with the rod angle
+    // changing far less, so draw the hand a good fraction of the way along
+    // the tip's excursion from its resting fishing position, within reach.
+    var tx = g.tip.x, ty = g.tip.y;
+    var hand = this._hand(tx, ty);
+    var gx = hand.x, gy = hand.y;
     var bend = Math.min(1, hud.tension * 0.9 + rig.contact * 0.12) * 0.22;
     var mx = (gx + tx) / 2, my = (gy + ty) / 2;
     var nx = -(ty - gy), ny = (tx - gx);
@@ -953,10 +959,40 @@
     } else { this.dropperFly.visible = false; this.tag.mesh.visible = false; }
   };
 
+  /**
+   * Where the rod hand is drawn for a given tip position: the game's grip
+   * point plus a share of the tip's excursion, eased off so the arm never
+   * leaves the shoulder. Cached per frame for the arm and torso.
+   */
+  Renderer.prototype._hand = function (tx, ty) {
+    var g = this.game;
+    var G = g.grip;
+    // Resting fishing position: rod up and out over the water at a lean.
+    var rx = G.x - 2.3, ry = 2.0;
+    var hx = G.x + (tx - rx) * 0.5;
+    var hy = G.y + (ty - ry) * 0.30;
+    var dx = hx - G.x, dy = hy - G.y, d = Math.hypot(dx, dy);
+    var reach = 0.5;
+    if (d > reach) {
+      var over = d - reach;
+      var soft = reach + over * 0.22 / (1 + over * 0.6);
+      hx = G.x + dx / d * soft; hy = G.y + dy / d * soft;
+    }
+    hy = clamp(hy, 0.62, 1.42);
+    this.hand = { x: hx, y: hy };
+    return this.hand;
+  };
+
   Renderer.prototype._syncAngler = function () {
     var g = this.game;
-    var shoulder = { x: g.grip.x + 0.40, y: 1.26, z: 0.31 };
-    this.armRod.set([shoulder, { x: g.grip.x + 0.02, y: g.grip.y + 0.02, z: 0.02 }]);
+    var hand = this.hand || g.grip;
+    var lean = clamp((hand.x - g.grip.x) * 0.35, -0.16, 0.16);
+    var shoulder = { x: g.grip.x + 0.40 + lean * 0.5, y: 1.26, z: 0.31 };
+    this.torso.rotation.z = -0.08 - lean;
+    this.head.position.x = g.grip.x + 0.33 + lean * 0.45;
+    this.cap.position.x = this.head.position.x;
+    this.peak.position.x = this.head.position.x - 0.12;
+    this.armRod.set([shoulder, { x: hand.x + 0.02, y: hand.y + 0.02, z: 0.02 }]);
 
     if (g.phase === 'netting') {
       var m = g.netMouth(g.netProgress);
