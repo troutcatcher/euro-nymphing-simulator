@@ -444,6 +444,7 @@
     this.canvas = canvas;
     this.game = game;
     this.t = 0;
+    this.rigZ = 0;               // where the rig plane is drawn across the river
     this._presetKey = null;
     this._view = 'bank';
 
@@ -747,16 +748,15 @@
     var rnd = seeded(preset.key.length * 7919 + 17);
 
     function bedY(x, z) {
-      var base = river.bedY(x);
+      var base = river.profileY(x) + river.laneDepthAt(z);
       // Deepest a little beyond the rig plane, climbing into the near bank fast
       // and the far bank slowly, with a little cobble roughness on top.
       // The near shore is part of the same surface: it shelves up through the
       // waterline into shingle so there is never a seam or a hole at the edge.
       var across = smooth(0.4, 2.6, z) * 0.9;
       var shore = smooth(2.6, 7.5, z) * 1.5 + smooth(6.0, 9.0, z) * 0.4;
-      var trough = -0.10 * Math.exp(-((z + 1.2) * (z + 1.2)) / 2.2);
       var rough = (noise2(x * 3.1, z * 3.1, 2) - 0.5) * 0.05 + smooth(0.0, 3.0, z) * (noise2(x * 0.5, z * 0.5, 5) - 0.5) * 0.18;
-      return base + across + shore + trough + rough;
+      return base + across + shore + rough;
     }
     this._bedY = bedY;
 
@@ -853,10 +853,10 @@
     for (var k = 0; k < rocks.length; k++) {
       var rk = rocks[k];
       var m = new T.Mesh(boulderGeo(k * 3.7), rockMat);
-      var cy = river.bedY(rk.x) + rk.r * 0.55;
-      // The physics only knows the rock's x; keep its bulk just to the far
-      // side of the drift lane so the fish holding behind it stay in view.
-      m.position.set(rk.x, cy, -(rk.r * 0.75 + 0.12));
+      var cy = river.profileY(rk.x) + rk.r * 0.55;
+      // The physics only knows the rock's x; keep its bulk between the near
+      // lane and the shore so no drift lane runs through it.
+      m.position.set(rk.x, cy, 0.35 + rk.r * 0.8);
       m.scale.set(rk.r, rk.r * 0.82, rk.r * 1.15);
       m.rotation.y = rnd() * Math.PI;
       m.castShadow = true; m.receiveShadow = true;
@@ -926,17 +926,21 @@
 
     // Lie markers, only shown in learning mode.
     this.lieMarks = [];
-    var lies = preset.lies || [];
     var ringGeo = new T.RingGeometry(0.30, 0.34, 40);
     ringGeo.rotateX(-Math.PI / 2);
     var ringMat = new T.MeshBasicMaterial({ color: hex('#ffd678'), transparent: true, opacity: 0.45, depthWrite: false });
-    for (var L = 0; L < lies.length; L++) {
-      var ring = new T.Mesh(ringGeo, ringMat);
-      ring.position.set(lies[L].x, river.bedY(lies[L].x) + 0.03, 0);
-      ring.scale.setScalar(1 + lies[L].quality * 0.4);
-      ring.visible = false;
-      this.beat.add(ring);
-      this.lieMarks.push(ring);
+    for (var LN = 0; LN < EN.LANES.length; LN++) {
+      var lane = EN.LANES[LN];
+      var lies = preset.lies || [];
+      for (var L = 0; L < lies.length; L++) {
+        var lie = EN.laneLie(lies[L], LN);
+        var ring = new T.Mesh(ringGeo, ringMat);
+        ring.position.set(lie.x, river.profileY(lie.x) + lane.depth + 0.03, lane.z);
+        ring.scale.setScalar(1 + lie.quality * 0.4);
+        ring.visible = false;
+        this.beat.add(ring);
+        this.lieMarks.push(ring);
+      }
     }
 
     this.scene.add(this.beat);
@@ -1310,7 +1314,7 @@
 
   Renderer.prototype._ring = function (x, r0, speed, life) {
     var m = new T.Mesh(this.ringGeo, this.ringMat.clone());
-    m.position.set(x, 0.004, 0);
+    m.position.set(x, 0.004, this.rigZ);
     m.renderOrder = 11;
     this.scene.add(m);
     this.rings.push({ mesh: m, r: r0, speed: speed, life: life, max: life });
@@ -1323,7 +1327,7 @@
       if (d.life > 0) continue;
       var a = -Math.PI * (0.15 + Math.random() * 0.7);
       var sp = 0.9 + Math.random() * 2.4;
-      d.x = x; d.y = Math.max(-0.02, y); d.z = (Math.random() - 0.5) * 0.3;
+      d.x = x; d.y = Math.max(-0.02, y); d.z = this.rigZ + (Math.random() - 0.5) * 0.3;
       d.vx = Math.cos(a) * sp * (Math.random() < 0.5 ? -1 : 1) * 0.6 + vx * 0.35;
       d.vy = -Math.sin(a) * sp;
       d.vz = (Math.random() - 0.5) * 1.4;
@@ -1393,6 +1397,9 @@
   Renderer.prototype.update = function (dt) {
     this.t += dt;
     if (this._presetKey !== this.game.river.preset.key) this._buildBeat();
+    // Swing the rig across to the lane being fished; bring it to hand to net.
+    var zTarget = this.game.phase === 'netting' ? 0.30 : this.game.laneZ();
+    this.rigZ += (zTarget - this.rigZ) * Math.min(1, dt * 4.5);
     this.waterMat.uniforms.uTime.value = this.t;
     this.skyMat.uniforms.uTime.value = this.t;
     this.veg.uTime.value = this.t;
@@ -1419,35 +1426,37 @@
     var nl = Math.hypot(nx, ny) || 1;
     var cx = mx + nx / nl * bend, cy = my + ny / nl * bend;
     var pts = [];
+    var rz = this.rigZ, hz = 0.02;
     for (var i = 0; i < 18; i++) {
       var s = i / 17, u = 1 - s;
       pts.push({ x: u * u * gx + 2 * u * s * cx + s * s * tx,
-                 y: u * u * gy + 2 * u * s * cy + s * s * ty, z: 0 });
+                 y: u * u * gy + 2 * u * s * cy + s * s * ty,
+                 z: hz + (rz - hz) * s });
     }
     this.rod.set(pts);
     var ux = tx - gx, uy = ty - gy, ul = Math.hypot(ux, uy) || 1;
     ux /= ul; uy /= ul;
-    this.cork.position.set(gx + ux * 0.02, gy + uy * 0.02, 0);
+    this.cork.position.set(gx + ux * 0.02, gy + uy * 0.02, hz);
     this.cork.rotation.z = Math.atan2(uy, ux) - Math.PI / 2;
-    this.reel.position.set(gx - ux * 0.20 - uy * 0.0, gy - uy * 0.20 - 0.06, 0);
+    this.reel.position.set(gx - ux * 0.20 - uy * 0.0, gy - uy * 0.20 - 0.06, hz);
 
     // Leader and sighter straight off the rig nodes.
     var nodes = rig.nodes, n = this.leaderN;
     var lp = [];
-    for (var k = 0; k < n; k++) lp.push({ x: nodes[k].x, y: nodes[k].y, z: 0 });
+    for (var k = 0; k < n; k++) lp.push({ x: nodes[k].x, y: nodes[k].y, z: rz });
     this.leader.set(lp);
     var sp = [];
-    for (var q = rig.sighterFrom; q <= rig.sighterTo; q++) sp.push({ x: nodes[q].x, y: nodes[q].y, z: 0 });
+    for (var q = rig.sighterFrom; q <= rig.sighterTo; q++) sp.push({ x: nodes[q].x, y: nodes[q].y, z: rz });
     this.sighter.set(sp);
 
     var p = rig.point();
-    this.pointFly.position.set(p.x, p.y, 0);
+    this.pointFly.position.set(p.x, p.y, rz);
     this.pointFly.rotation.z = Math.atan2(p.vy || 0, (p.vx || 0.01)) + Math.PI;
     var d = rig.dropper();
     if (d) {
       var host = nodes[rig.dropperHost];
-      this.tag.set([{ x: host.x, y: host.y, z: 0 }, { x: d.x, y: d.y, z: 0 }]);
-      this.dropperFly.position.set(d.x, d.y, 0);
+      this.tag.set([{ x: host.x, y: host.y, z: rz }, { x: d.x, y: d.y, z: rz }]);
+      this.dropperFly.position.set(d.x, d.y, rz);
       this.dropperFly.visible = true; this.tag.mesh.visible = true;
     } else { this.dropperFly.visible = false; this.tag.mesh.visible = false; }
   };
@@ -1493,10 +1502,10 @@
     if (g.phase === 'netting') {
       var m = g.netMouth(g.netProgress);
       var p = g.netProgress;
-      this.net.position.set(m.x, m.y, 0);
+      this.net.position.set(m.x, m.y, this.rigZ);
       this.net.rotation.set(0, 0, -0.3 + Math.min(1, Math.max(0, (p - 0.58) / 0.30)) * 0.7);
       this.bag.scale.y = p > 0.55 ? 1.35 : 1;
-      this.armNet.set([{ x: g.grip.x + 0.30, y: 1.22, z: 0.30 }, { x: m.x + 0.52, y: m.y + 0.02, z: 0.05 }]);
+      this.armNet.set([{ x: g.grip.x + 0.30, y: 1.22, z: 0.30 }, { x: m.x + 0.52, y: m.y + 0.02, z: this.rigZ + 0.05 }]);
       this.armNet.mesh.visible = true;
     } else {
       this.net.position.set(g.grip.x + 0.55, 0.98, 0.34);
@@ -1508,7 +1517,8 @@
 
   Renderer.prototype._syncFish = function () {
     var g = this.game;
-    var fishes = g.school.fish;
+    var fishes = [];
+    for (var si = 0; si < g.schools.length; si++) fishes = fishes.concat(g.schools[si].fish);
     var blind = !!g.river.preset.blind;
     if (!this.fishMeshes) { this.fishMeshes = []; this.texCache = {}; }
     while (this.fishMeshes.length < fishes.length) {
@@ -1532,7 +1542,8 @@
       fm2.group.visible = true;
       var L = f.lengthCm / 100;
       var hooked = f.state === 'hooked';
-      var rate = hooked ? 13 : 4.2;
+      var inLane = f.z === g.laneZ();
+      var rate = hooked ? 13 : (inLane ? 4.2 : 2.6);
       var amp = (hooked ? 0.055 : 0.022) * (0.6 + 0.4 * Math.sin(this.t * 0.7 + f.index));
       fm2.pose(L, this.t * rate + f.index * 1.9, amp);
       // Nose points into the current; hooked fish follow their velocity.
@@ -1540,7 +1551,8 @@
       if (hooked && Math.hypot(f.vx, f.vy) > 0.15) heading = Math.atan2(0, -f.vx) + (f.vx > 0 ? 0 : Math.PI) ;
       if (hooked) heading = f.vx > 0.1 ? 0 : Math.PI;
       var pitch = (hooked || f.airborne) ? -Math.atan2(f.vy, Math.abs(f.vx) + 0.3) * (heading === 0 ? -1 : 1) : 0;
-      fm2.group.position.set(f.x, f.y, 0);
+      var fz = (hooked || f.state === 'netting') ? this.rigZ : f.z;
+      fm2.group.position.set(f.x, f.y, fz);
       fm2.group.rotation.set(0, heading, pitch);
       // Hidden-but-drawn holding fish in learning mode look ghosted.
       var ghost = f.state === 'holding' && !g.showLies;
@@ -1608,6 +1620,7 @@
     var rect = this.canvas.getBoundingClientRect();
     var ndc = new T.Vector2((px / rect.width) * 2 - 1, -(py / rect.height) * 2 + 1);
     if (!this._ray) { this._ray = new T.Raycaster(); this._plane = new T.Plane(new T.Vector3(0, 0, 1), 0); this._hit = new T.Vector3(); }
+    this._plane.constant = -this.game.laneZ();
     this._ray.setFromCamera(ndc, this.camera);
     if (this._ray.ray.intersectPlane(this._plane, this._hit)) return { x: this._hit.x, y: this._hit.y };
     return { x: this.game.tipTarget.x, y: this.game.tipTarget.y };

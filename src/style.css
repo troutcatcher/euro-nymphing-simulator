@@ -68,7 +68,7 @@ html, body {
   /* Wrap rather than crush: on a narrow screen the phase cue drops to its own
      line instead of being squeezed into a one-word column. */
   flex-wrap: wrap;
-  padding-right: 84px;
+  padding-right: 236px;
 }
 
 #btn-sound,
@@ -92,6 +92,39 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 #btn-sound { right: 56px; }
+
+/* Lane picker: a pill beside the buttons, usable in full screen. */
+#lane-ctl {
+  position: absolute;
+  top: 14px;
+  right: 100px;
+  z-index: 2;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(10, 18, 22, 0.72);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 12px;
+  overflow: hidden;
+}
+#lane-ctl button {
+  width: 30px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#lane-ctl button:hover { color: var(--accent); }
+#lane-ctl button:disabled { opacity: 0.3; cursor: default; }
+#lane-badge { min-width: 62px; text-align: center; white-space: nowrap; padding: 0 2px; }
+@media (max-width: 600px) { #lane-badge { min-width: 0; } }
 #btn-sound:hover,
 #btn-full:hover { border-color: var(--accent); color: var(--accent); }
 body.immersive #btn-full { color: var(--accent); border-color: var(--accent); }

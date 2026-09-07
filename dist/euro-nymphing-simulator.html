@@ -77,7 +77,7 @@ html, body {
   /* Wrap rather than crush: on a narrow screen the phase cue drops to its own
      line instead of being squeezed into a one-word column. */
   flex-wrap: wrap;
-  padding-right: 84px;
+  padding-right: 236px;
 }
 
 #btn-sound,
@@ -101,6 +101,39 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 #btn-sound { right: 56px; }
+
+/* Lane picker: a pill beside the buttons, usable in full screen. */
+#lane-ctl {
+  position: absolute;
+  top: 14px;
+  right: 100px;
+  z-index: 2;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(10, 18, 22, 0.72);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 12px;
+  overflow: hidden;
+}
+#lane-ctl button {
+  width: 30px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#lane-ctl button:hover { color: var(--accent); }
+#lane-ctl button:disabled { opacity: 0.3; cursor: default; }
+#lane-badge { min-width: 62px; text-align: center; white-space: nowrap; padding: 0 2px; }
+@media (max-width: 600px) { #lane-badge { min-width: 0; } }
 #btn-sound:hover,
 #btn-full:hover { border-color: var(--accent); color: var(--accent); }
 body.immersive #btn-full { color: var(--accent); border-color: var(--accent); }
@@ -394,6 +427,11 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
           <div class="mini" id="m-fight" hidden><span>Tippet</span><div class="track"><div class="fill" id="m-tension"></div></div><em id="m-tension-v">—</em></div>
         </div>
         <div id="phase">Move the rod with the pointer — sweep it upstream to flick the flies out</div>
+        <div id="lane-ctl" title="Which lane to fish ([ and ])">
+          <button id="btn-near" type="button" aria-label="Fish a nearer lane">◂</button>
+          <span id="lane-badge">Near lane</span>
+          <button id="btn-far" type="button" aria-label="Fish a further lane">▸</button>
+        </div>
         <button id="btn-sound" type="button" title="Sound (M)" aria-label="Sound">🔈</button>
         <button id="btn-full" type="button" title="Full screen (F)" aria-label="Full screen">⤢</button>
       </div>
@@ -455,6 +493,19 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
           <option value="stained">Tea-stained run — blind</option>
         </select>
       </label>
+    </section>
+
+    <section>
+      <h2>Cast</h2>
+      <label class="field">Lane — how far across
+        <select id="lane">
+          <option value="0">Near lane — at your feet</option>
+          <option value="1">The seam — 0.7 m across</option>
+          <option value="2">Mid-river — 1.4 m across, deepest</option>
+          <option value="3">Far lane — 2.1 m across, a long reach</option>
+        </select>
+      </label>
+      <p class="sub" style="margin:6px 0 0">Each lane is its own drift with its own fish and its own depth. The further across you fish, the less of the rod is left to reach upstream, so the flies land shorter and you need more weight to get down. <kbd>[</kbd> and <kbd>]</kbd> step nearer and further.</p>
     </section>
 
     <section>
@@ -824,6 +875,19 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 (function (EN) {
   'use strict';
 
+  /**
+   * Drift lanes across the river. The rig physics lives in one vertical plane
+   * at a time; a lane picks which plane, how far across from the angler it
+   * sits and how much deeper the bed is there. z is metres across (negative
+   * is away from the near bank), depth is added to the beat's bed profile.
+   */
+  var LANES = [
+    { key: 'near',   name: 'Near lane',   z:  0.0, depth:  0.00, blurb: 'The soft water at your feet. Easy to reach, easy to line.' },
+    { key: 'seam',   name: 'The seam',    z: -0.7, depth: -0.14, blurb: 'Where the quick water meets the slow — fish sit on this edge.' },
+    { key: 'middle', name: 'Mid-river',   z: -1.4, depth: -0.30, blurb: 'The main current tongue. Deepest, fastest, needs the most weight.' },
+    { key: 'far',    name: 'Far lane',    z: -2.1, depth: -0.12, blurb: 'A long reach. The rod barely gets there, so the leader angles across.' }
+  ];
+
   var WORLD = {
     xMin: 0.4,
     xMax: 7.6,
@@ -991,7 +1055,26 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   function River(presetKey) {
     this.setPreset(presetKey || 'riffle');
     this.time = 0;
+    this.lane = 0;
+    this.lanes = LANES;
   }
+
+  River.prototype.laneZ = function () { return LANES[this.lane].z; };
+
+  /** Extra bed depth for a position across the river, interpolated between lanes. */
+  River.prototype.laneDepthAt = function (z) {
+    if (z >= LANES[0].z) return LANES[0].depth;
+    var last = LANES[LANES.length - 1];
+    if (z <= last.z) return last.depth;
+    for (var i = 1; i < LANES.length; i++) {
+      if (z >= LANES[i].z) {
+        var a = LANES[i - 1], b = LANES[i];
+        var t = (z - a.z) / (b.z - a.z);
+        return a.depth + (b.depth - a.depth) * (t * t * (3 - 2 * t));
+      }
+    }
+    return last.depth;
+  };
 
   River.prototype.setPreset = function (key) {
     this.preset = PRESETS[key] || PRESETS.riffle;
@@ -1000,12 +1083,17 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     for (var i = 0; i < this.preset.bed.length; i++) {
       deepest = Math.max(deepest, -this.preset.bed[i].y);
     }
-    this.maxDepth = deepest;
+    this.maxDepth = deepest + 0.30;
   };
 
-  /** Bed elevation (negative) at a downstream position. */
-  River.prototype.bedY = function (x) {
+  /** The beat's bed profile on its own, before any lane offset. */
+  River.prototype.profileY = function (x) {
     return sampleProfile(this.preset.bed, x);
+  };
+
+  /** Bed elevation (negative) at a downstream position, in the current lane. */
+  River.prototype.bedY = function (x) {
+    return sampleProfile(this.preset.bed, x) + LANES[this.lane].depth;
   };
 
   /** Water depth at a downstream position, metres. */
@@ -1064,6 +1152,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   };
 
   EN.WORLD = WORLD;
+  EN.LANES = LANES;
   EN.PRESETS = PRESETS;
   EN.River = River;
 })(window.EN = window.EN || {});
@@ -1434,10 +1523,11 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
   function rand(a, b) { return a + Math.random() * (b - a); }
 
-  function Fish(river, lie, index) {
+  function Fish(river, lie, index, z) {
     this.river = river;
     this.lie = lie;
     this.index = index;
+    this.z = z || 0;               // across the river: which lane it lives in
     this.species = SPECIES[Math.floor(Math.random() * SPECIES.length)];
 
     this.lengthCm = Math.round(rand(24, 30 + lie.quality * 22));
@@ -1793,21 +1883,45 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     return result;
   };
 
-  function School(river) {
+  /**
+   * The lies of a beat, moved across to a lane: shifted along the river so
+   * the lanes do not line up, and better or worse than the near lane by turn.
+   */
+  function laneLie(lie, lane) {
+    if (!lane) return lie;
+    var x = lie.x + lane * 0.45 * (lane % 2 ? 1 : -1);
+    if (x < 0.9) x += 4.2; else if (x > 6.3) x -= 4.2;
+    var q = Math.max(0.1, Math.min(1, lie.quality + (lane % 2 ? 0.12 : -0.08)));
+    return { x: x, quality: q };
+  }
+
+  function School(river, lane) {
     this.river = river;
+    this.lane = lane || 0;
+    this.z = EN.LANES ? EN.LANES[this.lane].z : 0;
     this.reset();
   }
 
+  School.prototype.lies = function () {
+    var lies = this.river.preset.lies, out = [];
+    for (var i = 0; i < lies.length; i++) out.push(laneLie(lies[i], this.lane));
+    return out;
+  };
+
   School.prototype.reset = function () {
     this.fish = [];
-    var lies = this.river.preset.lies;
+    // Fish are laid out on their own lane's bed, whichever lane is fished now.
+    var keep = this.river.lane;
+    this.river.lane = this.lane;
+    var lies = this.lies();
     for (var i = 0; i < lies.length; i++) {
       // Not every lie holds a fish, and you never know which.
       if (Math.random() < 0.35 + lies[i].quality * 0.5) {
-        this.fish.push(new Fish(this.river, lies[i], i));
+        this.fish.push(new Fish(this.river, lies[i], i, this.z));
       }
     }
-    if (!this.fish.length) this.fish.push(new Fish(this.river, lies[0], 0));
+    if (!this.fish.length) this.fish.push(new Fish(this.river, lies[0], 0, this.z));
+    this.river.lane = keep;
   };
 
   School.prototype.active = function () {
@@ -1820,6 +1934,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
   EN.Fish = Fish;
   EN.School = School;
+  EN.laneLie = laneLie;
   EN.SPECIES = SPECIES;
 })(window.EN = window.EN || {});
 
@@ -1849,7 +1964,9 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
   function Game() {
     this.river = new EN.River('riffle');
-    this.school = new EN.School(this.river);
+    this.lane = 0;
+    this.schools = this._makeSchools();
+    this.school = this.schools[0];
 
     this.grip = { x: 6.90, y: 1.00 };
     this.netPoint = { x: 6.35, y: -0.10 };   // where a fish is actually landed
@@ -1914,9 +2031,45 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   Game.prototype.setPreset = function (key) {
     this.river.setPreset(key);
     if (EN.audio) EN.audio.setRiver(this.river.preset);
-    this.school = new EN.School(this.river);
+    this.schools = this._makeSchools();
+    this.school = this.schools[this.lane];
     this.resetDrift();
     this.say(this.river.preset.name + ' — ' + this.river.preset.blurb, 'info');
+  };
+
+  /** One school of fish per lane, each laid out on its own lane's bed. */
+  Game.prototype._makeSchools = function () {
+    var out = [];
+    for (var i = 0; i < EN.LANES.length; i++) out.push(new EN.School(this.river, i));
+    return out;
+  };
+
+  Game.prototype.laneZ = function () { return EN.LANES[this.lane].z; };
+
+  /**
+   * How far the tip can be held upstream in the current lane: the rod's
+   * length less what it spends reaching across.
+   */
+  Game.prototype.reach = function () {
+    var dz = EN.LANES[this.lane].z - 0.28;
+    return Math.sqrt(Math.max(1.6, this.rodLength * this.rodLength - dz * dz));
+  };
+
+  /**
+   * Fish a different lane. The rig stays where it is in its own plane and the
+   * plane moves across the river; the renderer swings it there.
+   */
+  Game.prototype.setLane = function (i) {
+    i = Math.max(0, Math.min(EN.LANES.length - 1, i | 0));
+    if (i === this.lane) return false;
+    if (this.school.active()) { this.say('Deal with that fish before you change lanes.', 'coach'); return false; }
+    this.lane = i;
+    this.river.lane = i;
+    this.school = this.schools[i];
+    this.setTipTarget(this.tipTarget.x, this.tipTarget.y);
+    var L = EN.LANES[i];
+    this.say(L.name + ' — ' + L.blurb, 'info');
+    return true;
   };
 
   Game.prototype.setRig = function (patch) {
@@ -1954,7 +2107,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
     var dx = x - this.grip.x, dy = y - this.grip.y;
     var d = Math.hypot(dx, dy);
-    var maxR = this.rodLength, minR = 1.1;
+    var maxR = this.reach(), minR = 1.1;
     if (d > maxR) { x = this.grip.x + dx / d * maxR; y = this.grip.y + dy / d * maxR; }
     else if (d < minR && d > 1e-6) { x = this.grip.x + dx / d * minR; y = this.grip.y + dy / d * minR; }
 
@@ -2446,7 +2599,9 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     var above = river.heightAboveBed(p.x, p.y);
     var u = river.speedAt(p.x, p.y);
     var fish = this.school.active();
+    var lane = EN.LANES[this.lane];
     return {
+      lane: this.lane, laneName: lane.name, laneZ: lane.z,
       depth: p.y < 0 ? above : null,
       totalDepth: river.depth(p.x),
       drag: p.y < 0 ? p.vx - u : 0,
@@ -3752,7 +3907,8 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
    's-best', 's-zone', 's-dead', 's-last',
    'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill',
    'btn-full', 'btn-sound', 'hud-mini', 'rotate-hint', 'm-contact', 'm-contact-v', 'm-depth',
-   'm-depth-v', 'm-drag', 'm-drag-v', 'm-fight', 'm-tension', 'm-tension-v'
+   'm-depth-v', 'm-drag', 'm-drag-v', 'm-fight', 'm-tension', 'm-tension-v',
+   'lane', 'lane-badge', 'btn-near', 'btn-far'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
@@ -3818,6 +3974,8 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       case 'm': case 'M':
         toggleSound();
         break;
+      case '[': case ',': setLane(game.lane - 1); break;
+      case ']': case '.': setLane(game.lane + 1); break;
       case '1': setPreset('riffle'); break;
       case '2': setPreset('pocket'); break;
       case '3': setPreset('tailout'); break;
@@ -3966,6 +4124,25 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
   el.preset.addEventListener('change', function () { game.setPreset(el.preset.value); });
 
+  // ---- lanes ---------------------------------------------------------------
+
+  function syncLane() {
+    var L = EN.LANES[game.lane];
+    syncLane.last = game.lane;
+    if (el.lane) el.lane.value = String(game.lane);
+    if (el['lane-badge']) el['lane-badge'].textContent = L.name;
+    if (el['btn-near']) el['btn-near'].disabled = game.lane === 0;
+    if (el['btn-far']) el['btn-far'].disabled = game.lane === EN.LANES.length - 1;
+  }
+  function setLane(i) {
+    game.setLane(i);
+    syncLane();
+  }
+  if (el.lane) el.lane.addEventListener('change', function () { setLane(parseInt(el.lane.value, 10)); });
+  if (el['btn-near']) el['btn-near'].addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); setLane(game.lane - 1); });
+  if (el['btn-far']) el['btn-far'].addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); setLane(game.lane + 1); });
+  syncLane();
+
   el.bead.addEventListener('input', function () {
     var mm = parseFloat(el.bead.value);
     el['bead-val'].textContent = mm.toFixed(1) + ' mm';
@@ -4036,6 +4213,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   var logSig = '';
 
   function updateHud() {
+    if (el['lane-badge'] && game.lane !== syncLane.last) syncLane();
     var hud = game.hudState();
     var s = game.stats;
 

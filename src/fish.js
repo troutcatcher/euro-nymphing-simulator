@@ -27,10 +27,11 @@
 
   function rand(a, b) { return a + Math.random() * (b - a); }
 
-  function Fish(river, lie, index) {
+  function Fish(river, lie, index, z) {
     this.river = river;
     this.lie = lie;
     this.index = index;
+    this.z = z || 0;               // across the river: which lane it lives in
     this.species = SPECIES[Math.floor(Math.random() * SPECIES.length)];
 
     this.lengthCm = Math.round(rand(24, 30 + lie.quality * 22));
@@ -386,21 +387,45 @@
     return result;
   };
 
-  function School(river) {
+  /**
+   * The lies of a beat, moved across to a lane: shifted along the river so
+   * the lanes do not line up, and better or worse than the near lane by turn.
+   */
+  function laneLie(lie, lane) {
+    if (!lane) return lie;
+    var x = lie.x + lane * 0.45 * (lane % 2 ? 1 : -1);
+    if (x < 0.9) x += 4.2; else if (x > 6.3) x -= 4.2;
+    var q = Math.max(0.1, Math.min(1, lie.quality + (lane % 2 ? 0.12 : -0.08)));
+    return { x: x, quality: q };
+  }
+
+  function School(river, lane) {
     this.river = river;
+    this.lane = lane || 0;
+    this.z = EN.LANES ? EN.LANES[this.lane].z : 0;
     this.reset();
   }
 
+  School.prototype.lies = function () {
+    var lies = this.river.preset.lies, out = [];
+    for (var i = 0; i < lies.length; i++) out.push(laneLie(lies[i], this.lane));
+    return out;
+  };
+
   School.prototype.reset = function () {
     this.fish = [];
-    var lies = this.river.preset.lies;
+    // Fish are laid out on their own lane's bed, whichever lane is fished now.
+    var keep = this.river.lane;
+    this.river.lane = this.lane;
+    var lies = this.lies();
     for (var i = 0; i < lies.length; i++) {
       // Not every lie holds a fish, and you never know which.
       if (Math.random() < 0.35 + lies[i].quality * 0.5) {
-        this.fish.push(new Fish(this.river, lies[i], i));
+        this.fish.push(new Fish(this.river, lies[i], i, this.z));
       }
     }
-    if (!this.fish.length) this.fish.push(new Fish(this.river, lies[0], 0));
+    if (!this.fish.length) this.fish.push(new Fish(this.river, lies[0], 0, this.z));
+    this.river.lane = keep;
   };
 
   School.prototype.active = function () {
@@ -413,5 +438,6 @@
 
   EN.Fish = Fish;
   EN.School = School;
+  EN.laneLie = laneLie;
   EN.SPECIES = SPECIES;
 })(window.EN = window.EN || {});

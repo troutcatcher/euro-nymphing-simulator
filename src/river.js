@@ -7,6 +7,19 @@
 (function (EN) {
   'use strict';
 
+  /**
+   * Drift lanes across the river. The rig physics lives in one vertical plane
+   * at a time; a lane picks which plane, how far across from the angler it
+   * sits and how much deeper the bed is there. z is metres across (negative
+   * is away from the near bank), depth is added to the beat's bed profile.
+   */
+  var LANES = [
+    { key: 'near',   name: 'Near lane',   z:  0.0, depth:  0.00, blurb: 'The soft water at your feet. Easy to reach, easy to line.' },
+    { key: 'seam',   name: 'The seam',    z: -0.7, depth: -0.14, blurb: 'Where the quick water meets the slow — fish sit on this edge.' },
+    { key: 'middle', name: 'Mid-river',   z: -1.4, depth: -0.30, blurb: 'The main current tongue. Deepest, fastest, needs the most weight.' },
+    { key: 'far',    name: 'Far lane',    z: -2.1, depth: -0.12, blurb: 'A long reach. The rod barely gets there, so the leader angles across.' }
+  ];
+
   var WORLD = {
     xMin: 0.4,
     xMax: 7.6,
@@ -174,7 +187,26 @@
   function River(presetKey) {
     this.setPreset(presetKey || 'riffle');
     this.time = 0;
+    this.lane = 0;
+    this.lanes = LANES;
   }
+
+  River.prototype.laneZ = function () { return LANES[this.lane].z; };
+
+  /** Extra bed depth for a position across the river, interpolated between lanes. */
+  River.prototype.laneDepthAt = function (z) {
+    if (z >= LANES[0].z) return LANES[0].depth;
+    var last = LANES[LANES.length - 1];
+    if (z <= last.z) return last.depth;
+    for (var i = 1; i < LANES.length; i++) {
+      if (z >= LANES[i].z) {
+        var a = LANES[i - 1], b = LANES[i];
+        var t = (z - a.z) / (b.z - a.z);
+        return a.depth + (b.depth - a.depth) * (t * t * (3 - 2 * t));
+      }
+    }
+    return last.depth;
+  };
 
   River.prototype.setPreset = function (key) {
     this.preset = PRESETS[key] || PRESETS.riffle;
@@ -183,12 +215,17 @@
     for (var i = 0; i < this.preset.bed.length; i++) {
       deepest = Math.max(deepest, -this.preset.bed[i].y);
     }
-    this.maxDepth = deepest;
+    this.maxDepth = deepest + 0.30;
   };
 
-  /** Bed elevation (negative) at a downstream position. */
-  River.prototype.bedY = function (x) {
+  /** The beat's bed profile on its own, before any lane offset. */
+  River.prototype.profileY = function (x) {
     return sampleProfile(this.preset.bed, x);
+  };
+
+  /** Bed elevation (negative) at a downstream position, in the current lane. */
+  River.prototype.bedY = function (x) {
+    return sampleProfile(this.preset.bed, x) + LANES[this.lane].depth;
   };
 
   /** Water depth at a downstream position, metres. */
@@ -247,6 +284,7 @@
   };
 
   EN.WORLD = WORLD;
+  EN.LANES = LANES;
   EN.PRESETS = PRESETS;
   EN.River = River;
 })(window.EN = window.EN || {});

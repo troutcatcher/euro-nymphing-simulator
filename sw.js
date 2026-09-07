@@ -5,7 +5,7 @@
  * Cache-first for the app shell; the version string is bumped by the build so
  * a new deploy replaces the old cache instead of sitting behind it.
  */
-var VERSION = 'nymph-v3';
+var VERSION = 'nymph-v4';
 var SHELL = [
   './3d.html',
   './index.html',

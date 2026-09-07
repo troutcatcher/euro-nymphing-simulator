@@ -24,7 +24,9 @@
 
   function Game() {
     this.river = new EN.River('riffle');
-    this.school = new EN.School(this.river);
+    this.lane = 0;
+    this.schools = this._makeSchools();
+    this.school = this.schools[0];
 
     this.grip = { x: 6.90, y: 1.00 };
     this.netPoint = { x: 6.35, y: -0.10 };   // where a fish is actually landed
@@ -89,9 +91,45 @@
   Game.prototype.setPreset = function (key) {
     this.river.setPreset(key);
     if (EN.audio) EN.audio.setRiver(this.river.preset);
-    this.school = new EN.School(this.river);
+    this.schools = this._makeSchools();
+    this.school = this.schools[this.lane];
     this.resetDrift();
     this.say(this.river.preset.name + ' — ' + this.river.preset.blurb, 'info');
+  };
+
+  /** One school of fish per lane, each laid out on its own lane's bed. */
+  Game.prototype._makeSchools = function () {
+    var out = [];
+    for (var i = 0; i < EN.LANES.length; i++) out.push(new EN.School(this.river, i));
+    return out;
+  };
+
+  Game.prototype.laneZ = function () { return EN.LANES[this.lane].z; };
+
+  /**
+   * How far the tip can be held upstream in the current lane: the rod's
+   * length less what it spends reaching across.
+   */
+  Game.prototype.reach = function () {
+    var dz = EN.LANES[this.lane].z - 0.28;
+    return Math.sqrt(Math.max(1.6, this.rodLength * this.rodLength - dz * dz));
+  };
+
+  /**
+   * Fish a different lane. The rig stays where it is in its own plane and the
+   * plane moves across the river; the renderer swings it there.
+   */
+  Game.prototype.setLane = function (i) {
+    i = Math.max(0, Math.min(EN.LANES.length - 1, i | 0));
+    if (i === this.lane) return false;
+    if (this.school.active()) { this.say('Deal with that fish before you change lanes.', 'coach'); return false; }
+    this.lane = i;
+    this.river.lane = i;
+    this.school = this.schools[i];
+    this.setTipTarget(this.tipTarget.x, this.tipTarget.y);
+    var L = EN.LANES[i];
+    this.say(L.name + ' — ' + L.blurb, 'info');
+    return true;
   };
 
   Game.prototype.setRig = function (patch) {
@@ -129,7 +167,7 @@
 
     var dx = x - this.grip.x, dy = y - this.grip.y;
     var d = Math.hypot(dx, dy);
-    var maxR = this.rodLength, minR = 1.1;
+    var maxR = this.reach(), minR = 1.1;
     if (d > maxR) { x = this.grip.x + dx / d * maxR; y = this.grip.y + dy / d * maxR; }
     else if (d < minR && d > 1e-6) { x = this.grip.x + dx / d * minR; y = this.grip.y + dy / d * minR; }
 
@@ -621,7 +659,9 @@
     var above = river.heightAboveBed(p.x, p.y);
     var u = river.speedAt(p.x, p.y);
     var fish = this.school.active();
+    var lane = EN.LANES[this.lane];
     return {
+      lane: this.lane, laneName: lane.name, laneZ: lane.z,
       depth: p.y < 0 ? above : null,
       totalDepth: river.depth(p.x),
       drag: p.y < 0 ? p.vx - u : 0,
