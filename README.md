@@ -32,6 +32,30 @@ provider that cannot resolve relative paths to sibling files, so the multi-file
 version loads as bare unstyled HTML with no canvas. The bundle has no external
 references at all and works anywhere.
 
+## The 3D build
+
+`3d.html` is the same simulator — same leader physics, same fish, same sighter
+detection, same sound — drawn with WebGL instead of a flat cross-section: a lit
+river bed under a moving water surface, the leader and sighter as real
+three-dimensional line, the fish as skinned bodies that swim, run and jump, and
+the angler on the shingle netting them. It uses [three.js](https://threejs.org/)
+(r158, vendored in `vendor/` under its MIT licence), so it still needs no build
+step and no network: open `3d.html` from disk, or use the single-file
+`dist/euro-nymphing-3d.html` on a phone.
+
+It is also a Progressive Web App. Served over HTTPS (GitHub Pages, or any static
+host) it can be installed to a phone's home screen from the browser menu —
+**Add to Home Screen** in Chrome on Android, **Share → Add to Home Screen** in
+Safari on iOS — and then launches full screen in landscape, works offline, and
+opens straight into the river with the panel hidden. Installation needs a real
+URL: a downloaded copy of the file plays fine but cannot be installed.
+
+The 3D renderer lives in `src/render3d.js` and exposes the same four-method
+interface as `src/render.js`, so `main.js` and the physics do not know which one
+they are running under. Everything that fits in the game plane fits here: the rig
+and the fish live at `z = 0`, the boulders are shifted just beyond it so the lane
+stays visible, and the pointer is projected onto that plane to move the rod.
+
 If you would rather serve it:
 
 ```sh

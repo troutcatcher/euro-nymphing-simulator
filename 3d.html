@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Euro Nymphing Simulator 3D</title>
+<meta name="description" content="A browser simulator for tight-line (Euro) nymphing: leader physics, sighter take detection, and playing fish.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%8E%A3%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0d1418">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="scene"></canvas>
+    <div id="overlay">
+      <div id="topbar">
+        <div id="hud-mini">
+          <div class="mini"><span>Contact</span><div class="track"><div class="fill" id="m-contact"></div></div><em id="m-contact-v">—</em></div>
+          <div class="mini"><span>Off bed</span><div class="track"><div class="fill" id="m-depth"></div></div><em id="m-depth-v">—</em></div>
+          <div class="mini"><span>Drag</span><div class="track"><div class="fill" id="m-drag"></div></div><em id="m-drag-v">—</em></div>
+          <div class="mini" id="m-fight" hidden><span>Tippet</span><div class="track"><div class="fill" id="m-tension"></div></div><em id="m-tension-v">—</em></div>
+        </div>
+        <div id="phase">Move the rod with the pointer — sweep it upstream to flick the flies out</div>
+        <button id="btn-sound" type="button" title="Sound (M)" aria-label="Sound">🔈</button>
+        <button id="btn-full" type="button" title="Full screen (F)" aria-label="Full screen">⤢</button>
+      </div>
+      <div id="log"></div>
+      <div id="rotate-hint" hidden>Turn your phone sideways for the full view</div>
+    </div>
+  </div>
+
+  <aside id="panel">
+    <h1>Euro Nymphing Simulator <small class="tag3d">3D</small></h1>
+    <p class="sub">Tight-line contact, drift depth, and the take — read the sighter.</p>
+
+    <section id="drift-section">
+      <h2>Drift</h2>
+
+      <div class="meter">
+        <div class="meter-head"><span>Contact</span><span id="contact-val">—</span></div>
+        <div class="track">
+          <div class="band" id="contact-band"></div>
+          <div class="fill" id="contact-fill"></div>
+        </div>
+      </div>
+
+      <div class="meter">
+        <div class="meter-head"><span>Off the bed</span><span id="depth-val">—</span></div>
+        <div class="track"><div class="fill" id="depth-fill"></div></div>
+      </div>
+
+      <div class="meter">
+        <div class="meter-head"><span>Drag</span><span id="drag-val">—</span></div>
+        <div class="track"><div class="fill" id="drag-fill"></div></div>
+      </div>
+    </section>
+
+    <section id="fight-section" hidden>
+      <h2>Fish on</h2>
+      <div class="meter">
+        <div class="meter-head"><span>Tippet load</span><span id="tension-val">—</span></div>
+        <div class="track">
+          <div class="band" id="tension-band"></div>
+          <div class="fill" id="tension-fill"></div>
+        </div>
+      </div>
+      <div class="meter">
+        <div class="meter-head"><span>Fish left in it</span><span id="stamina-val">—</span></div>
+        <div class="track"><div class="fill" id="stamina-fill"></div></div>
+      </div>
+      <p class="sub" style="margin:0">Hold the mouse button to gather line. Give when it runs.</p>
+    </section>
+
+    <section>
+      <h2>Water</h2>
+      <label class="field">Beat
+        <select id="preset">
+          <option value="riffle">Riffle run</option>
+          <option value="pocket">Deep pocket</option>
+          <option value="tailout">Glassy tailout</option>
+          <option value="boulders">Boulder garden — blind</option>
+          <option value="stained">Tea-stained run — blind</option>
+        </select>
+      </label>
+    </section>
+
+    <section>
+      <h2>Rig</h2>
+      <label class="field">Point fly bead — <span id="bead-val">3.5 mm</span>
+        <input type="range" id="bead" min="2.5" max="4.5" step="1" value="3.5">
+      </label>
+      <label class="field">Working leader, tip to point fly — <span id="leader-val">3.2 m</span>
+        <input type="range" id="leader" min="2.4" max="4.6" step="0.2" value="3.2">
+      </label>
+      <label class="field">Tippet
+        <select id="tippet">
+          <option value="0.10">0.10 mm (7X)</option>
+          <option value="0.12">0.12 mm (6X)</option>
+          <option value="0.14">0.14 mm (5X)</option>
+          <option value="0.16">0.16 mm (4X)</option>
+          <option value="0.18" selected>0.18 mm (3X)</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="dropper" checked> Fish a dropper on a tag</label>
+      <label class="check"><input type="checkbox" id="lies"> Learning mode (show lies and fish)</label>
+      <p class="sub" style="margin:6px 0 0">The two blind beats hide the fish completely and never announce a take — the sighter is your only instrument. Learning mode reveals them if you want to see what you missed.</p>
+    </section>
+
+    <section>
+      <h2>Hookset</h2>
+      <label class="check"><input type="checkbox" id="lift" checked> Strike by lifting the rod</label>
+      <label class="field" id="lift-field">Lift sensitivity — <span id="lift-val">normal</span>
+        <input type="range" id="lift-sens" min="1" max="5" step="1" value="3">
+      </label>
+      <div class="meter">
+        <div class="meter-head"><span>Lift</span><span id="lift-read">—</span></div>
+        <div class="track"><div class="fill" id="lift-fill"></div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Session</h2>
+      <dl class="rows">
+        <dt>Drifts</dt><dd id="s-drifts">0</dd>
+        <dt>Takes</dt><dd id="s-takes">0</dd>
+        <dt>Hooked</dt><dd id="s-hooked">0</dd>
+        <dt>Landed</dt><dd id="s-landed">0</dd>
+        <dt>Best fish</dt><dd id="s-best">—</dd>
+        <dt>Avg. time in the zone</dt><dd id="s-zone">—</dd>
+        <dt>Avg. dead drift</dt><dd id="s-dead">—</dd>
+        <dt>Last drift score</dt><dd id="s-last">—</dd>
+      </dl>
+    </section>
+
+    <section>
+      <button id="reset">Reset session</button>
+    </section>
+
+    <details>
+      <summary>How to fish it</summary>
+      <p><b>Cast</b> by moving the rod. Sweep the tip up and upstream and the weight of the flies carries them out; drop the tip and they drop in and start sinking. There is no cast button — the leader is a real rope and you are throwing it.</p>
+      <p><b>Lead the sighter</b> downstream at the speed of the water. Contact wants to sit in the marked band: tight enough that a take moves the sighter, loose enough that you are not towing the flies.</p>
+      <p><b>Get down.</b> Fish eat within about 30 cm of the bed. Deeper or faster water needs a heavier bead, a longer leader, or a cast further upstream.</p>
+      <p><b>Strike</b> at anything the sighter does that the current did not do — a stall, a tick, a lift. You have a few tenths of a second. Sweep the rod tip up (or up and downstream) to set the hook, or use <kbd>click</kbd> / <kbd>Space</kbd>. A slow raise through the drift will not trip it; a sharp one will.</p>
+      <p><b>Play it</b> by holding the pointer down to gather line and releasing to give it back. Watch the tippet load.</p>
+      <p><b>On a phone or tablet:</b> drag to move the rod, flick up to set, and press and hold to gather line while you steer.</p>
+      <p><kbd>R</kbd> drops the rig back under the tip if you tangle it or want to start again.</p>
+      <p>Keys: <kbd>Space</kbd> gather line · <kbd>R</kbd> reset the rig · <kbd>C</kbd> tuck cast (fallback) · <kbd>F</kbd> full screen · <kbd>M</kbd> sound · <kbd>L</kbd> learning mode · <kbd>P</kbd> pause · <kbd>1</kbd>–<kbd>5</kbd> beats</p>
+      <p><b>Sound</b> (<kbd>M</kbd>, or the speaker) is the river itself plus the things worth hearing — the flies going in, a bead knocking stone, line tearing off a running fish. Nothing marks a take: you cannot hear a trout eat.</p>
+      <p><b>Full screen</b> (<kbd>F</kbd>, or the ⤢ button) hides this panel and gives the river the whole screen, with the meters you need moved to the top edge. Best held sideways.</p>
+    </details>
+  </aside>
+</div>
+
+<script src="src/audio.js"></script>
+<script src="src/river.js"></script>
+<script src="src/rig.js"></script>
+<script src="src/fish.js"></script>
+<script src="src/game.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="src/render3d.js"></script>
+<script src="src/main.js"></script>
+<script>
+// Offline shell for the installed app. Only registers on http(s) — file:// and
+// the single-file bundle skip it silently.
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>

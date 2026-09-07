@@ -10,6 +10,10 @@
  *   node tools/build-single-file.js --fragment   -> also dist/fragment.html (no
  *                                                   doctype/html/head/body, for
  *                                                   hosts that supply their own)
+ *   node tools/build-single-file.js --entry 3d.html --name euro-nymphing-3d
+ *                                                -> dist/euro-nymphing-3d.html
+ *                                                   (and dist/euro-nymphing-3d.fragment.html
+ *                                                   with --fragment)
  */
 'use strict';
 
@@ -28,15 +32,26 @@ function guard(js) {
   return js.replace(/<\/(script)/gi, '<\\/$1');
 }
 
-const html = read('index.html');
+function arg(flag, fallback) {
+  const i = process.argv.indexOf(flag);
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
+}
+const entry = arg('--entry', 'index.html');
+const name = arg('--name', 'euro-nymphing-simulator');
+
+let html = read(entry);
+// Manifest and icon links point at files that do not exist inside a single
+// file; drop them so the bundle stays clean. The service worker registration
+// checks for its own file and stays inert.
+html = html.replace(/<link[^>]+rel=["']manifest["'][^>]*>\s*/gi, '');
 
 const cssHref = /<link[^>]+rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/i;
 const cssMatch = html.match(cssHref);
-if (!cssMatch) throw new Error('no stylesheet link found in index.html');
+if (!cssMatch) throw new Error('no stylesheet link found in ' + entry);
 const css = read(cssMatch[1]);
 
 const scripts = [...html.matchAll(/<script\s+src=["']([^"']+)["']\s*><\/script>\s*/gi)];
-if (!scripts.length) throw new Error('no script tags found in index.html');
+if (!scripts.length) throw new Error('no script tags found in ' + entry);
 const js = scripts.map((m) => read(m[1])).join('\n');
 
 let out = html
@@ -47,7 +62,7 @@ out = out.replace('__BUNDLE__', '<script>\n' + guard(js) + '\n</script>');
 
 fs.mkdirSync(dist, { recursive: true });
 
-const bundlePath = path.join(dist, 'euro-nymphing-simulator.html');
+const bundlePath = path.join(dist, name + '.html');
 fs.writeFileSync(bundlePath, out);
 console.log('wrote ' + path.relative(root, bundlePath) +
             '  (' + (Buffer.byteLength(out) / 1024).toFixed(0) + ' KB)');
@@ -58,7 +73,7 @@ if (process.argv.includes('--fragment')) {
   const style = out.match(/<style>[\s\S]*?<\/style>/i)[0];
   const body = out.match(/<body[^>]*>([\s\S]*?)<\/body>/i)[1].trim();
   const fragment = '<title>' + title + '</title>\n' + style + '\n' + body + '\n';
-  const fragmentPath = path.join(dist, 'fragment.html');
+  const fragmentPath = path.join(dist, name === 'euro-nymphing-simulator' ? 'fragment.html' : name + '.fragment.html');
   fs.writeFileSync(fragmentPath, fragment);
   console.log('wrote ' + path.relative(root, fragmentPath) +
               '  (' + (Buffer.byteLength(fragment) / 1024).toFixed(0) + ' KB)');

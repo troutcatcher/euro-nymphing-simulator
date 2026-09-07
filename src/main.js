@@ -430,5 +430,14 @@
   applyLiftSettings();
   renderer.resize();
   updateHud();
+  // Launched from a home-screen icon there is no browser chrome and no reason
+  // to show the panel first: open straight into the river.
+  try {
+    if (window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches ||
+                              window.matchMedia('(display-mode: fullscreen)').matches)) {
+      setImmersive(true);
+      lockLandscape();
+    }
+  } catch (e) { /* not installed */ }
   requestAnimationFrame(frame);
 })(window.EN);
