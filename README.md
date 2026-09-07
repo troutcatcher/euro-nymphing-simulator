@@ -106,11 +106,12 @@ does that the current cannot explain. Then keep a bend in the rod, give line whe
 it runs, and drop the rod tip to lead a beaten fish to your feet.
 
 The river has four drift lanes across it — at your feet, the seam, mid-river and
-a far lane — each with its own depth and its own fish. <kbd>[</kbd> and
-<kbd>]</kbd>, the ◂ ▸ pill in the top bar, or the Cast section of the panel move
-you across. The further out you fish, the more of the rod is spent reaching over
-and the shorter the flies land, so the far lane is a genuine reach and mid-river
-wants more weight to get down.
+a far lane — each with its own depth and its own fish. Where a cast lands is the
+cast's own business: the harder you throw the flies, the further across they
+carry, and a gentle lob drops them back at your feet. The badge in the top bar
+says which lane you are in. The further out you fish, the more of the rod is
+spent reaching over and the shorter the flies land, so the far lane is a genuine
+reach and mid-river wants more weight to get down.
 
 Casting is a real cast, not a button. The leader is a rope with mass on the end,
 so you load it by moving the rod back, drive it upstream, and stop — the stop is

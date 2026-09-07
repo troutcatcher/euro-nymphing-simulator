@@ -70,7 +70,7 @@ html, body {
   /* Wrap rather than crush: on a narrow screen the phase cue drops to its own
      line instead of being squeezed into a one-word column. */
   flex-wrap: wrap;
-  padding-right: 236px;
+  padding-right: 200px;
 }
 
 #btn-sound,
@@ -112,20 +112,7 @@ html, body {
   font-size: 12px;
   overflow: hidden;
 }
-#lane-ctl button {
-  width: 30px;
-  height: 34px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 15px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-#lane-ctl button:hover { color: var(--accent); }
-#lane-ctl button:disabled { opacity: 0.3; cursor: default; }
-#lane-badge { min-width: 62px; text-align: center; white-space: nowrap; padding: 0 2px; }
+#lane-badge { white-space: nowrap; padding: 0 10px; color: var(--muted); letter-spacing: 0.02em; }
 @media (max-width: 600px) { #lane-badge { min-width: 0; } }
 #btn-sound:hover,
 #btn-full:hover { border-color: var(--accent); color: var(--accent); }
@@ -418,11 +405,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
           <div class="mini" id="m-fight" hidden><span>Tippet</span><div class="track"><div class="fill" id="m-tension"></div></div><em id="m-tension-v">—</em></div>
         </div>
         <div id="phase">Move the rod with the pointer — sweep it upstream to flick the flies out</div>
-        <div id="lane-ctl" title="Which lane to fish ([ and ])">
-          <button id="btn-near" type="button" aria-label="Fish a nearer lane">◂</button>
-          <span id="lane-badge">Near lane</span>
-          <button id="btn-far" type="button" aria-label="Fish a further lane">▸</button>
-        </div>
+        <div id="lane-ctl" title="The lane the last cast landed in"><span id="lane-badge">Near lane</span></div>
         <button id="btn-sound" type="button" title="Sound (M)" aria-label="Sound">🔈</button>
         <button id="btn-full" type="button" title="Full screen (F)" aria-label="Full screen">⤢</button>
       </div>
@@ -484,19 +467,6 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
           <option value="stained">Tea-stained run — blind</option>
         </select>
       </label>
-    </section>
-
-    <section>
-      <h2>Cast</h2>
-      <label class="field">Lane — how far across
-        <select id="lane">
-          <option value="0">Near lane — at your feet</option>
-          <option value="1">The seam — 0.7 m across</option>
-          <option value="2">Mid-river — 1.4 m across, deepest</option>
-          <option value="3">Far lane — 2.1 m across, a long reach</option>
-        </select>
-      </label>
-      <p class="sub" style="margin:6px 0 0">Each lane is its own drift with its own fish and its own depth. The further across you fish, the less of the rod is left to reach upstream, so the flies land shorter and you need more weight to get down. <kbd>[</kbd> and <kbd>]</kbd> step nearer and further.</p>
     </section>
 
     <section>
@@ -874,9 +844,9 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
    */
   var LANES = [
     { key: 'near',   name: 'Near lane',   z:  0.0, depth:  0.00, blurb: 'The soft water at your feet. Easy to reach, easy to line.' },
-    { key: 'seam',   name: 'The seam',    z: -0.7, depth: -0.14, blurb: 'Where the quick water meets the slow — fish sit on this edge.' },
-    { key: 'middle', name: 'Mid-river',   z: -1.4, depth: -0.30, blurb: 'The main current tongue. Deepest, fastest, needs the most weight.' },
-    { key: 'far',    name: 'Far lane',    z: -2.1, depth: -0.12, blurb: 'A long reach. The rod barely gets there, so the leader angles across.' }
+    { key: 'seam',   name: 'The seam',    z: -0.6, depth: -0.14, blurb: 'Where the quick water meets the slow — fish sit on this edge.' },
+    { key: 'middle', name: 'Mid-river',   z: -1.2, depth: -0.30, blurb: 'The main current tongue. Deepest, fastest, needs the most weight.' },
+    { key: 'far',    name: 'Far lane',    z: -1.8, depth: -0.12, blurb: 'A long reach. The rod barely gets there, so the leader angles across.' }
   ];
 
   var WORLD = {
@@ -1956,6 +1926,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   function Game() {
     this.river = new EN.River('riffle');
     this.lane = 0;
+    this.castPeak = 0; this.castLane = null; this.castAnnounced = -1;
     this.schools = this._makeSchools();
     this.school = this.schools[0];
 
@@ -2057,10 +2028,49 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     this.lane = i;
     this.river.lane = i;
     this.school = this.schools[i];
-    this.setTipTarget(this.tipTarget.x, this.tipTarget.y);
-    var L = EN.LANES[i];
-    this.say(L.name + ' — ' + L.blurb, 'info');
+    // The tip clamp for the new lane applies on the next pointer move, so a
+    // cast in flight is not yanked back mid-stroke.
     return true;
+  };
+
+  /**
+   * Cast power thresholds: the point fly's peak airborne speed heading
+   * upstream, in m/s, above which the flies carry to each further lane.
+   */
+  var CAST_LANES = [5.0, 7.5, 11.0];
+  Game.prototype.laneForCast = function (speed) {
+    var lane = 0;
+    for (var i = 0; i < CAST_LANES.length; i++) if (speed >= CAST_LANES[i]) lane = i + 1;
+    return lane;
+  };
+
+  /**
+   * Where a cast goes is the cast's own business: while the flies are in
+   * the air heading upstream, the harder they were thrown the further across
+   * the river they carry. The lane follows the flight, and locks when they
+   * land. A gentle lob drops them back in the near lane.
+   */
+  Game.prototype._trackCast = function (p, wet) {
+    if (wet) {
+      if (this.castPeak > 0 && this.castLane !== null) {
+        var L = EN.LANES[this.lane];
+        if (this.castLane !== this.castAnnounced) {
+          this.say('Landed in ' + L.name.toLowerCase() + ' — ' + L.blurb, 'info');
+          this.castAnnounced = this.castLane;
+        }
+      }
+      this.castPeak = 0; this.castLane = null;
+      return;
+    }
+    if (p.vx < -0.3 && p.y > -0.02) {
+      var sp = Math.hypot(p.vx, p.vy);
+      if (sp > this.castPeak) {
+        this.castPeak = sp;
+        var lane = this.laneForCast(sp);
+        if (lane !== this.lane && !this.school.active()) this.setLane(lane);
+        this.castLane = this.lane;
+      }
+    }
   };
 
   Game.prototype.setRig = function (patch) {
@@ -2490,6 +2500,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     var p = this.rig.point();
     var wet = p.y < 0;
     var past = p.x > this.grip.x - 0.35;
+    this._trackCast(p, wet);
 
     if (!wet) {
       this.dryTime += dt;
@@ -4038,17 +4049,26 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     var tx = g.tip.x, ty = g.tip.y;
     var hand = this._hand(tx, ty);
     var gx = hand.x, gy = hand.y;
-    var bend = Math.min(1, hud.tension * 0.9 + rig.contact * 0.12) * 0.22;
-    var mx = (gx + tx) / 2, my = (gy + ty) / 2;
-    var nx = -(ty - gy), ny = (tx - gx);
-    var nl = Math.hypot(nx, ny) || 1;
-    var cx = mx + nx / nl * bend, cy = my + ny / nl * bend;
+    // The blank bows away from the line's pull so the tip points at the load,
+    // most of the curve in the top half. Belly grows with tippet load, so a
+    // running fish hauls it into a deep bend and a jump lets it spring back.
+    var cxd = tx - gx, cyd = ty - gy, cl = Math.hypot(cxd, cyd) || 1;
+    var ux0 = cxd / cl, uy0 = cyd / cl;
+    var px = -uy0, py = ux0;                       // perpendicular to the chord
+    var n1 = rig.nodes[1] || rig.nodes[0];
+    var lx = n1.x - tx, ly = n1.y - ty, ll = Math.hypot(lx, ly) || 1;
+    var side = (lx * px + ly * py) / ll;           // which side the line pulls to
+    var sgn = Math.abs(side) > 0.08 ? -Math.sign(side) : (py > 0 ? 1 : -1);
+    var load = Math.min(1.1, hud.tension || 0);
+    var belly = 0.03 + rig.contact * 0.05 + load * 0.48;
     var pts = [];
     var rz = this.rigZ, hz = 0.02;
     for (var i = 0; i < 18; i++) {
-      var s = i / 17, u = 1 - s;
-      pts.push({ x: u * u * gx + 2 * u * s * cx + s * s * tx,
-                 y: u * u * gy + 2 * u * s * cy + s * s * ty,
+      var s = i / 17;
+      var f = Math.pow(s, 1.5) * Math.sqrt(1 - s) / 0.325;   // peaks around s = 0.75
+      var off = belly * f * sgn;
+      pts.push({ x: gx + cxd * s + px * off,
+                 y: gy + cyd * s + py * off,
                  z: hz + (rz - hz) * s });
     }
     this.rod.set(pts);
@@ -4281,7 +4301,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
    'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill',
    'btn-full', 'btn-sound', 'hud-mini', 'rotate-hint', 'm-contact', 'm-contact-v', 'm-depth',
    'm-depth-v', 'm-drag', 'm-drag-v', 'm-fight', 'm-tension', 'm-tension-v',
-   'lane', 'lane-badge', 'btn-near', 'btn-far'
+   'lane-badge'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
@@ -4347,8 +4367,6 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       case 'm': case 'M':
         toggleSound();
         break;
-      case '[': case ',': setLane(game.lane - 1); break;
-      case ']': case '.': setLane(game.lane + 1); break;
       case '1': setPreset('riffle'); break;
       case '2': setPreset('pocket'); break;
       case '3': setPreset('tailout'); break;
@@ -4499,21 +4517,11 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
 
   // ---- lanes ---------------------------------------------------------------
 
+  // The lane is decided by the cast itself; the badge only reports it.
   function syncLane() {
-    var L = EN.LANES[game.lane];
     syncLane.last = game.lane;
-    if (el.lane) el.lane.value = String(game.lane);
-    if (el['lane-badge']) el['lane-badge'].textContent = L.name;
-    if (el['btn-near']) el['btn-near'].disabled = game.lane === 0;
-    if (el['btn-far']) el['btn-far'].disabled = game.lane === EN.LANES.length - 1;
+    if (el['lane-badge']) el['lane-badge'].textContent = EN.LANES[game.lane].name;
   }
-  function setLane(i) {
-    game.setLane(i);
-    syncLane();
-  }
-  if (el.lane) el.lane.addEventListener('change', function () { setLane(parseInt(el.lane.value, 10)); });
-  if (el['btn-near']) el['btn-near'].addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); setLane(game.lane - 1); });
-  if (el['btn-far']) el['btn-far'].addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); setLane(game.lane + 1); });
   syncLane();
 
   el.bead.addEventListener('input', function () {

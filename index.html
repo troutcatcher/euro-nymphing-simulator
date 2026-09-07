@@ -21,11 +21,7 @@
           <div class="mini" id="m-fight" hidden><span>Tippet</span><div class="track"><div class="fill" id="m-tension"></div></div><em id="m-tension-v">—</em></div>
         </div>
         <div id="phase">Move the rod with the pointer — sweep it upstream to flick the flies out</div>
-        <div id="lane-ctl" title="Which lane to fish ([ and ])">
-          <button id="btn-near" type="button" aria-label="Fish a nearer lane">◂</button>
-          <span id="lane-badge">Near lane</span>
-          <button id="btn-far" type="button" aria-label="Fish a further lane">▸</button>
-        </div>
+        <div id="lane-ctl" title="The lane the last cast landed in"><span id="lane-badge">Near lane</span></div>
         <button id="btn-sound" type="button" title="Sound (M)" aria-label="Sound">🔈</button>
         <button id="btn-full" type="button" title="Full screen (F)" aria-label="Full screen">⤢</button>
       </div>
@@ -87,19 +83,6 @@
           <option value="stained">Tea-stained run — blind</option>
         </select>
       </label>
-    </section>
-
-    <section>
-      <h2>Cast</h2>
-      <label class="field">Lane — how far across
-        <select id="lane">
-          <option value="0">Near lane — at your feet</option>
-          <option value="1">The seam — 0.7 m across</option>
-          <option value="2">Mid-river — 1.4 m across, deepest</option>
-          <option value="3">Far lane — 2.1 m across, a long reach</option>
-        </select>
-      </label>
-      <p class="sub" style="margin:6px 0 0">Each lane is its own drift with its own fish and its own depth. The further across you fish, the less of the rod is left to reach upstream, so the flies land shorter and you need more weight to get down. <kbd>[</kbd> and <kbd>]</kbd> step nearer and further.</p>
     </section>
 
     <section>

@@ -1420,17 +1420,26 @@
     var tx = g.tip.x, ty = g.tip.y;
     var hand = this._hand(tx, ty);
     var gx = hand.x, gy = hand.y;
-    var bend = Math.min(1, hud.tension * 0.9 + rig.contact * 0.12) * 0.22;
-    var mx = (gx + tx) / 2, my = (gy + ty) / 2;
-    var nx = -(ty - gy), ny = (tx - gx);
-    var nl = Math.hypot(nx, ny) || 1;
-    var cx = mx + nx / nl * bend, cy = my + ny / nl * bend;
+    // The blank bows away from the line's pull so the tip points at the load,
+    // most of the curve in the top half. Belly grows with tippet load, so a
+    // running fish hauls it into a deep bend and a jump lets it spring back.
+    var cxd = tx - gx, cyd = ty - gy, cl = Math.hypot(cxd, cyd) || 1;
+    var ux0 = cxd / cl, uy0 = cyd / cl;
+    var px = -uy0, py = ux0;                       // perpendicular to the chord
+    var n1 = rig.nodes[1] || rig.nodes[0];
+    var lx = n1.x - tx, ly = n1.y - ty, ll = Math.hypot(lx, ly) || 1;
+    var side = (lx * px + ly * py) / ll;           // which side the line pulls to
+    var sgn = Math.abs(side) > 0.08 ? -Math.sign(side) : (py > 0 ? 1 : -1);
+    var load = Math.min(1.1, hud.tension || 0);
+    var belly = 0.03 + rig.contact * 0.05 + load * 0.48;
     var pts = [];
     var rz = this.rigZ, hz = 0.02;
     for (var i = 0; i < 18; i++) {
-      var s = i / 17, u = 1 - s;
-      pts.push({ x: u * u * gx + 2 * u * s * cx + s * s * tx,
-                 y: u * u * gy + 2 * u * s * cy + s * s * ty,
+      var s = i / 17;
+      var f = Math.pow(s, 1.5) * Math.sqrt(1 - s) / 0.325;   // peaks around s = 0.75
+      var off = belly * f * sgn;
+      pts.push({ x: gx + cxd * s + px * off,
+                 y: gy + cyd * s + py * off,
                  z: hz + (rz - hz) * s });
     }
     this.rod.set(pts);

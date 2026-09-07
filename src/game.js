@@ -25,6 +25,7 @@
   function Game() {
     this.river = new EN.River('riffle');
     this.lane = 0;
+    this.castPeak = 0; this.castLane = null; this.castAnnounced = -1;
     this.schools = this._makeSchools();
     this.school = this.schools[0];
 
@@ -126,10 +127,49 @@
     this.lane = i;
     this.river.lane = i;
     this.school = this.schools[i];
-    this.setTipTarget(this.tipTarget.x, this.tipTarget.y);
-    var L = EN.LANES[i];
-    this.say(L.name + ' — ' + L.blurb, 'info');
+    // The tip clamp for the new lane applies on the next pointer move, so a
+    // cast in flight is not yanked back mid-stroke.
     return true;
+  };
+
+  /**
+   * Cast power thresholds: the point fly's peak airborne speed heading
+   * upstream, in m/s, above which the flies carry to each further lane.
+   */
+  var CAST_LANES = [5.0, 7.5, 11.0];
+  Game.prototype.laneForCast = function (speed) {
+    var lane = 0;
+    for (var i = 0; i < CAST_LANES.length; i++) if (speed >= CAST_LANES[i]) lane = i + 1;
+    return lane;
+  };
+
+  /**
+   * Where a cast goes is the cast's own business: while the flies are in
+   * the air heading upstream, the harder they were thrown the further across
+   * the river they carry. The lane follows the flight, and locks when they
+   * land. A gentle lob drops them back in the near lane.
+   */
+  Game.prototype._trackCast = function (p, wet) {
+    if (wet) {
+      if (this.castPeak > 0 && this.castLane !== null) {
+        var L = EN.LANES[this.lane];
+        if (this.castLane !== this.castAnnounced) {
+          this.say('Landed in ' + L.name.toLowerCase() + ' — ' + L.blurb, 'info');
+          this.castAnnounced = this.castLane;
+        }
+      }
+      this.castPeak = 0; this.castLane = null;
+      return;
+    }
+    if (p.vx < -0.3 && p.y > -0.02) {
+      var sp = Math.hypot(p.vx, p.vy);
+      if (sp > this.castPeak) {
+        this.castPeak = sp;
+        var lane = this.laneForCast(sp);
+        if (lane !== this.lane && !this.school.active()) this.setLane(lane);
+        this.castLane = this.lane;
+      }
+    }
   };
 
   Game.prototype.setRig = function (patch) {
@@ -559,6 +599,7 @@
     var p = this.rig.point();
     var wet = p.y < 0;
     var past = p.x > this.grip.x - 0.35;
+    this._trackCast(p, wet);
 
     if (!wet) {
       this.dryTime += dt;

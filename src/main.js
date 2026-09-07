@@ -20,7 +20,7 @@
    'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill',
    'btn-full', 'btn-sound', 'hud-mini', 'rotate-hint', 'm-contact', 'm-contact-v', 'm-depth',
    'm-depth-v', 'm-drag', 'm-drag-v', 'm-fight', 'm-tension', 'm-tension-v',
-   'lane', 'lane-badge', 'btn-near', 'btn-far'
+   'lane-badge'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
@@ -86,8 +86,6 @@
       case 'm': case 'M':
         toggleSound();
         break;
-      case '[': case ',': setLane(game.lane - 1); break;
-      case ']': case '.': setLane(game.lane + 1); break;
       case '1': setPreset('riffle'); break;
       case '2': setPreset('pocket'); break;
       case '3': setPreset('tailout'); break;
@@ -238,21 +236,11 @@
 
   // ---- lanes ---------------------------------------------------------------
 
+  // The lane is decided by the cast itself; the badge only reports it.
   function syncLane() {
-    var L = EN.LANES[game.lane];
     syncLane.last = game.lane;
-    if (el.lane) el.lane.value = String(game.lane);
-    if (el['lane-badge']) el['lane-badge'].textContent = L.name;
-    if (el['btn-near']) el['btn-near'].disabled = game.lane === 0;
-    if (el['btn-far']) el['btn-far'].disabled = game.lane === EN.LANES.length - 1;
+    if (el['lane-badge']) el['lane-badge'].textContent = EN.LANES[game.lane].name;
   }
-  function setLane(i) {
-    game.setLane(i);
-    syncLane();
-  }
-  if (el.lane) el.lane.addEventListener('change', function () { setLane(parseInt(el.lane.value, 10)); });
-  if (el['btn-near']) el['btn-near'].addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); setLane(game.lane - 1); });
-  if (el['btn-far']) el['btn-far'].addEventListener('click', function (ev) { ev.preventDefault(); ev.stopPropagation(); setLane(game.lane + 1); });
   syncLane();
 
   el.bead.addEventListener('input', function () {

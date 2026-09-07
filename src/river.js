@@ -15,9 +15,9 @@
    */
   var LANES = [
     { key: 'near',   name: 'Near lane',   z:  0.0, depth:  0.00, blurb: 'The soft water at your feet. Easy to reach, easy to line.' },
-    { key: 'seam',   name: 'The seam',    z: -0.7, depth: -0.14, blurb: 'Where the quick water meets the slow — fish sit on this edge.' },
-    { key: 'middle', name: 'Mid-river',   z: -1.4, depth: -0.30, blurb: 'The main current tongue. Deepest, fastest, needs the most weight.' },
-    { key: 'far',    name: 'Far lane',    z: -2.1, depth: -0.12, blurb: 'A long reach. The rod barely gets there, so the leader angles across.' }
+    { key: 'seam',   name: 'The seam',    z: -0.6, depth: -0.14, blurb: 'Where the quick water meets the slow — fish sit on this edge.' },
+    { key: 'middle', name: 'Mid-river',   z: -1.2, depth: -0.30, blurb: 'The main current tongue. Deepest, fastest, needs the most weight.' },
+    { key: 'far',    name: 'Far lane',    z: -1.8, depth: -0.12, blurb: 'A long reach. The rod barely gets there, so the leader angles across.' }
   ];
 
   var WORLD = {

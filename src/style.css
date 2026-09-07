@@ -68,7 +68,7 @@ html, body {
   /* Wrap rather than crush: on a narrow screen the phase cue drops to its own
      line instead of being squeezed into a one-word column. */
   flex-wrap: wrap;
-  padding-right: 236px;
+  padding-right: 200px;
 }
 
 #btn-sound,
@@ -110,20 +110,7 @@ html, body {
   font-size: 12px;
   overflow: hidden;
 }
-#lane-ctl button {
-  width: 30px;
-  height: 34px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 15px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-#lane-ctl button:hover { color: var(--accent); }
-#lane-ctl button:disabled { opacity: 0.3; cursor: default; }
-#lane-badge { min-width: 62px; text-align: center; white-space: nowrap; padding: 0 2px; }
+#lane-badge { white-space: nowrap; padding: 0 10px; color: var(--muted); letter-spacing: 0.02em; }
 @media (max-width: 600px) { #lane-badge { min-width: 0; } }
 #btn-sound:hover,
 #btn-full:hover { border-color: var(--accent); color: var(--accent); }
