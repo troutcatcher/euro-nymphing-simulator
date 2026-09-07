@@ -55,10 +55,12 @@ if (!scripts.length) throw new Error('no script tags found in ' + entry);
 const js = scripts.map((m) => read(m[1])).join('\n');
 
 let out = html
-  .replace(cssMatch[0], '<style>\n' + css + '\n</style>')
+  .replace(cssMatch[0], function () { return '<style>\n' + css + '\n</style>'; })
   .replace(scripts[0][0], '__BUNDLE__\n');
 for (const m of scripts.slice(1)) out = out.replace(m[0], '');
-out = out.replace('__BUNDLE__', '<script>\n' + guard(js) + '\n</script>');
+// Function replacers: a plain replacement string has "$&" and "$'" expanded
+// by String.prototype.replace, and minified three.js contains "$&".
+out = out.replace('__BUNDLE__', function () { return '<script>\n' + guard(js) + '\n</script>'; });
 
 fs.mkdirSync(dist, { recursive: true });
 
