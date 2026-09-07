@@ -6,7 +6,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, claude/euro-nymphing-3d-tss4ww]
+    branches: [main, claude/euro-nymphing-simulator-tss4ww, claude/euro-nymphing-3d-tss4ww]
   workflow_dispatch:
 
 permissions:
