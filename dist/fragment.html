@@ -1224,6 +1224,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     this.buoy = opts.buoy;
     this.waterRate = opts.waterRate; // velocity relaxation toward the current, 1/s
     this.airRate = opts.airRate;
+    this.airQuad = opts.airQuad || 0;  // extra air drag per m/s: whips die, loops carry
     this.section = opts.section;
     this.pinned = !!opts.pinned;
     this.floats = !!opts.floats;      // rides the surface rather than sinking
@@ -1287,17 +1288,18 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       if (indicator) {
         if (i < indIndex * 0.72) {
           // Floating fly line: fat, and the surface takes hold of it hard.
-          section = 'line'; waterRate = 70; airRate = 2.0;
+          section = 'line'; waterRate = 70; airRate = 0.7;
           opts = { buoy: 0, mass: lineMass, floats: true, draft: 0.0015, floatK: 90 };
         } else if (i < indIndex) {
           // Greased leader butt, floating but lighter on the water.
-          section = 'butt'; waterRate = 35; airRate = 1.1;
+          section = 'butt'; waterRate = 35; airRate = 0.9;
           opts = { buoy: 0, mass: monoMass, floats: true, draft: 0.002, floatK: 60 };
         } else if (i === indIndex) {
-          section = 'indicator'; waterRate = ind.rate; airRate = 1.6;
+          // A foam ball is nearly all drag: it kills the whip at the end of a cast.
+          section = 'indicator'; waterRate = ind.rate; airRate = 1.7;
           opts = { buoy: 0, mass: ind.mass, floats: true, draft: ind.r * 0.55, floatK: ind.floatK };
         } else {
-          section = 'tippet'; waterRate = 55 * (c.tippet / 0.14); airRate = 0.8;
+          section = 'tippet'; waterRate = 55 * (c.tippet / 0.14); airRate = 1.5;
         }
       } else if (f >= c.sighterFrom && f <= c.sighterTo) {
         section = 'sighter';
@@ -1313,7 +1315,8 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
         invMass: i === 0 ? 0 : 1 / (isPoint ? pointMass : opts.mass),
         buoy: isPoint ? BUOY.fly : opts.buoy,
         waterRate: isPoint ? G * BUOY.fly / beadSinkRate(c.pointBead) : waterRate,
-        airRate: isPoint ? 0.45 : airRate,
+        airRate: isPoint ? (indicator ? 0.9 : 0.45) : airRate,
+        airQuad: indicator ? (isPoint ? 0.05 : (section === 'line' ? 0.04 : 0.14)) : 0,
         section: isPoint ? 'point' : section,
         pinned: i === 0,
         floats: !isPoint && opts.floats,
@@ -1441,7 +1444,8 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
         nd.vy += (turb.y - nd.vy) * k;
         nd.vy -= G * nd.buoy * dt;
       } else {
-        var ka = 1 - Math.exp(-nd.airRate * dt);
+        var spd = Math.hypot(nd.vx, nd.vy);
+        var ka = 1 - Math.exp(-(nd.airRate + nd.airQuad * spd) * dt);
         nd.vx += (0 - nd.vx) * ka;
         nd.vy += (0 - nd.vy) * ka;
         nd.vy -= G * dt;
@@ -2209,12 +2213,17 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     var rig = this.rig;
     var ind = rig.indicatorNode();
     var p = rig.point();
-    if (p.y >= 0 && p.vx < -0.3) {
-      // Flies flying upstream: line shoots through the guides.
-      rig.lineOut = Math.min(rig.total, rig.lineOut + dt * 9);
+    var tv = this.tipVel ? Math.hypot(this.tipVel.x, this.tipVel.y) : 0;
+    if (ind.y > 0.04) {
+      // The line is in the air on a cast: the stripped line goes back out
+      // through the guides, so the forward cast has all of it to lay out.
+      if (tv > 0.8 || (p.y >= 0 && p.vx < -0.3)) rig.lineOut = Math.min(rig.total, rig.lineOut + dt * 14);
       return;
     }
-    if (ind.y > 0.04) return;
+    if (p.y >= 0 && p.vx < -0.3) { rig.lineOut = Math.min(rig.total, rig.lineOut + dt * 14); return; }
+    // Strip only on a settled drift coming back to you — never while the rod
+    // is working or the line is still landing from a cast.
+    if (ind.vx < 0.1 || tv > 0.8 || this.dryTime > 0) return;
     var chord = Math.hypot(ind.x - this.tip.x, ind.y - this.tip.y);
     var want = clamp(chord + 0.55 + rig.config.indicatorDepth, rig.minLineOut(), rig.total);
     if (want < rig.lineOut) rig.lineOut = Math.max(want, rig.lineOut - dt * 0.9);
@@ -2253,9 +2262,13 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
    * upstream, in m/s, above which the flies carry to each further lane.
    */
   var CAST_LANES = [5.0, 7.5, 11.0];
+  // With a fly line the indicator's speed in the air carries the cast: these
+  // were measured off gentle, medium, brisk and hard overhead strokes.
+  var CAST_LANES_IND = [9.0, 14.0, 20.0];
   Game.prototype.laneForCast = function (speed) {
+    var steps = this.rig.indicator ? CAST_LANES_IND : CAST_LANES;
     var lane = 0;
-    for (var i = 0; i < CAST_LANES.length; i++) if (speed >= CAST_LANES[i]) lane = i + 1;
+    for (var i = 0; i < steps.length; i++) if (speed >= steps[i]) lane = i + 1;
     return lane;
   };
 
@@ -2277,8 +2290,11 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       this.castPeak = 0; this.castLane = null;
       return;
     }
-    if (p.vx < -0.3 && p.y > -0.02) {
-      var sp = Math.hypot(p.vx, p.vy);
+    // Under an indicator the line's speed is what carries the cast; read it
+    // off the indicator rather than the whipping nymph.
+    var lead = this.rig.indicator ? this.rig.indicatorNode() : p;
+    if (lead.vx < -0.3 && lead.y > -0.02) {
+      var sp = Math.hypot(lead.vx, lead.vy);
       if (sp > this.castPeak) {
         this.castPeak = sp;
         var lane = this.laneForCast(sp);
@@ -2327,7 +2343,10 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   Game.prototype.setTipTarget = function (x, y) {
     // You cannot hold the tip much past your own downstream shoulder, and it
     // has to stay in the frame.
-    x = clamp(x, EN.WORLD.xMin + 0.25, Math.min(this.grip.x + 0.35, EN.WORLD.xMax - 0.25));
+    // With a fly line the back cast goes up behind the shoulder; tight-line,
+    // you cannot hold the tip much past your own downstream shoulder.
+    var behind = this.rig.indicator ? 2.6 : 0.35;
+    x = clamp(x, EN.WORLD.xMin + 0.25, this.rig.indicator ? this.grip.x + behind : Math.min(this.grip.x + behind, EN.WORLD.xMax - 0.25));
     y = clamp(y, 0.08, EN.WORLD.yTop - 0.15);
 
     var dx = x - this.grip.x, dy = y - this.grip.y;
@@ -2441,10 +2460,21 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       if (this.messages[m].life <= 0) this.messages.splice(m, 1);
     }
 
-    // Rod tip lags the hand a little; that lag is where slack comes from.
-    var k = Math.min(1, dt * 16);
-    this.tip.x += (this.tipTarget.x - this.tip.x) * k;
-    this.tip.y += (this.tipTarget.y - this.tip.y) * k;
+    if (this.rig.indicator) {
+      // The rod is a spring: the tip lags the hand as the blank loads and
+      // snaps past it when the hand stops. That stop is what throws the loop.
+      if (!this.tipVel) this.tipVel = { x: 0, y: 0 };
+      var w = 2 * Math.PI * 2.2, zeta = 0.65;
+      this.tipVel.x += (w * w * (this.tipTarget.x - this.tip.x) - 2 * zeta * w * this.tipVel.x) * dt;
+      this.tipVel.y += (w * w * (this.tipTarget.y - this.tip.y) - 2 * zeta * w * this.tipVel.y) * dt;
+      this.tip.x += this.tipVel.x * dt;
+      this.tip.y += this.tipVel.y * dt;
+    } else {
+      // Rod tip lags the hand a little; that lag is where slack comes from.
+      var k = Math.min(1, dt * 16);
+      this.tip.x += (this.tipTarget.x - this.tip.x) * k;
+      this.tip.y += (this.tipTarget.y - this.tip.y) * k;
+    }
 
     this._updateLift(dt);
 
@@ -4434,8 +4464,8 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     // longer range to match.
     var cur = parseFloat(el.leader.value);
     if (ind) {
-      el.leader.min = '4'; el.leader.max = '9'; el.leader.step = '0.5';
-      el.leader.value = cur < 4 ? '6' : String(cur);
+      el.leader.min = '3.5'; el.leader.max = '7'; el.leader.step = '0.5';
+      el.leader.value = cur < 3.5 ? '4.5' : String(Math.min(cur, 7));
       el['leader-label'].textContent = 'Line out, tip to indicator';
       el['contact-label'].textContent = 'Tippet hanging straight';
       el['m-contact-l'].textContent = 'Tippet';

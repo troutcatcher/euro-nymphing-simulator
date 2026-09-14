@@ -116,12 +116,17 @@
     var rig = this.rig;
     var ind = rig.indicatorNode();
     var p = rig.point();
-    if (p.y >= 0 && p.vx < -0.3) {
-      // Flies flying upstream: line shoots through the guides.
-      rig.lineOut = Math.min(rig.total, rig.lineOut + dt * 9);
+    var tv = this.tipVel ? Math.hypot(this.tipVel.x, this.tipVel.y) : 0;
+    if (ind.y > 0.04) {
+      // The line is in the air on a cast: the stripped line goes back out
+      // through the guides, so the forward cast has all of it to lay out.
+      if (tv > 0.8 || (p.y >= 0 && p.vx < -0.3)) rig.lineOut = Math.min(rig.total, rig.lineOut + dt * 14);
       return;
     }
-    if (ind.y > 0.04) return;
+    if (p.y >= 0 && p.vx < -0.3) { rig.lineOut = Math.min(rig.total, rig.lineOut + dt * 14); return; }
+    // Strip only on a settled drift coming back to you — never while the rod
+    // is working or the line is still landing from a cast.
+    if (ind.vx < 0.1 || tv > 0.8 || this.dryTime > 0) return;
     var chord = Math.hypot(ind.x - this.tip.x, ind.y - this.tip.y);
     var want = clamp(chord + 0.55 + rig.config.indicatorDepth, rig.minLineOut(), rig.total);
     if (want < rig.lineOut) rig.lineOut = Math.max(want, rig.lineOut - dt * 0.9);
@@ -160,9 +165,13 @@
    * upstream, in m/s, above which the flies carry to each further lane.
    */
   var CAST_LANES = [5.0, 7.5, 11.0];
+  // With a fly line the indicator's speed in the air carries the cast: these
+  // were measured off gentle, medium, brisk and hard overhead strokes.
+  var CAST_LANES_IND = [9.0, 14.0, 20.0];
   Game.prototype.laneForCast = function (speed) {
+    var steps = this.rig.indicator ? CAST_LANES_IND : CAST_LANES;
     var lane = 0;
-    for (var i = 0; i < CAST_LANES.length; i++) if (speed >= CAST_LANES[i]) lane = i + 1;
+    for (var i = 0; i < steps.length; i++) if (speed >= steps[i]) lane = i + 1;
     return lane;
   };
 
@@ -184,8 +193,11 @@
       this.castPeak = 0; this.castLane = null;
       return;
     }
-    if (p.vx < -0.3 && p.y > -0.02) {
-      var sp = Math.hypot(p.vx, p.vy);
+    // Under an indicator the line's speed is what carries the cast; read it
+    // off the indicator rather than the whipping nymph.
+    var lead = this.rig.indicator ? this.rig.indicatorNode() : p;
+    if (lead.vx < -0.3 && lead.y > -0.02) {
+      var sp = Math.hypot(lead.vx, lead.vy);
       if (sp > this.castPeak) {
         this.castPeak = sp;
         var lane = this.laneForCast(sp);
@@ -234,7 +246,10 @@
   Game.prototype.setTipTarget = function (x, y) {
     // You cannot hold the tip much past your own downstream shoulder, and it
     // has to stay in the frame.
-    x = clamp(x, EN.WORLD.xMin + 0.25, Math.min(this.grip.x + 0.35, EN.WORLD.xMax - 0.25));
+    // With a fly line the back cast goes up behind the shoulder; tight-line,
+    // you cannot hold the tip much past your own downstream shoulder.
+    var behind = this.rig.indicator ? 2.6 : 0.35;
+    x = clamp(x, EN.WORLD.xMin + 0.25, this.rig.indicator ? this.grip.x + behind : Math.min(this.grip.x + behind, EN.WORLD.xMax - 0.25));
     y = clamp(y, 0.08, EN.WORLD.yTop - 0.15);
 
     var dx = x - this.grip.x, dy = y - this.grip.y;
@@ -348,10 +363,21 @@
       if (this.messages[m].life <= 0) this.messages.splice(m, 1);
     }
 
-    // Rod tip lags the hand a little; that lag is where slack comes from.
-    var k = Math.min(1, dt * 16);
-    this.tip.x += (this.tipTarget.x - this.tip.x) * k;
-    this.tip.y += (this.tipTarget.y - this.tip.y) * k;
+    if (this.rig.indicator) {
+      // The rod is a spring: the tip lags the hand as the blank loads and
+      // snaps past it when the hand stops. That stop is what throws the loop.
+      if (!this.tipVel) this.tipVel = { x: 0, y: 0 };
+      var w = 2 * Math.PI * 2.2, zeta = 0.65;
+      this.tipVel.x += (w * w * (this.tipTarget.x - this.tip.x) - 2 * zeta * w * this.tipVel.x) * dt;
+      this.tipVel.y += (w * w * (this.tipTarget.y - this.tip.y) - 2 * zeta * w * this.tipVel.y) * dt;
+      this.tip.x += this.tipVel.x * dt;
+      this.tip.y += this.tipVel.y * dt;
+    } else {
+      // Rod tip lags the hand a little; that lag is where slack comes from.
+      var k = Math.min(1, dt * 16);
+      this.tip.x += (this.tipTarget.x - this.tip.x) * k;
+      this.tip.y += (this.tipTarget.y - this.tip.y) * k;
+    }
 
     this._updateLift(dt);
 

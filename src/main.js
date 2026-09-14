@@ -259,8 +259,8 @@
     // longer range to match.
     var cur = parseFloat(el.leader.value);
     if (ind) {
-      el.leader.min = '4'; el.leader.max = '9'; el.leader.step = '0.5';
-      el.leader.value = cur < 4 ? '6' : String(cur);
+      el.leader.min = '3.5'; el.leader.max = '7'; el.leader.step = '0.5';
+      el.leader.value = cur < 3.5 ? '4.5' : String(Math.min(cur, 7));
       el['leader-label'].textContent = 'Line out, tip to indicator';
       el['contact-label'].textContent = 'Tippet hanging straight';
       el['m-contact-l'].textContent = 'Tippet';

@@ -168,6 +168,13 @@ is what you can see and what stands between you and the fish.
   a couple of seconds of clean drift before the belly forms again, so you mend and
   mend again. The free hand strips line in on its own as the drift comes back to
   you, and the next cast shoots it out again.
+- **The cast is a fly cast.** The rod is a spring: the tip lags your hand as
+  the blank loads and snaps past it when you stop, and that stop is what throws
+  the loop. Lift the line into a back cast up and behind your shoulder, let it
+  straighten, then stroke forward and stop high — the loop unrolls and the line
+  lays out in front of you. Stroke too soon and it cracks; stop low and it piles;
+  a slow stroke will not even lift line that is lying downstream. How briskly
+  you stroke is how far across the indicator carries.
 - **You face the far bank.** The view is from behind your shoulder looking across
   the river, the cast goes up and across at about 45 degrees, and the rod then
   swings round to follow the indicator down the drift. Casts carry twice as far

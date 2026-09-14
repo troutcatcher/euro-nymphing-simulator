@@ -54,6 +54,7 @@
     this.buoy = opts.buoy;
     this.waterRate = opts.waterRate; // velocity relaxation toward the current, 1/s
     this.airRate = opts.airRate;
+    this.airQuad = opts.airQuad || 0;  // extra air drag per m/s: whips die, loops carry
     this.section = opts.section;
     this.pinned = !!opts.pinned;
     this.floats = !!opts.floats;      // rides the surface rather than sinking
@@ -117,17 +118,18 @@
       if (indicator) {
         if (i < indIndex * 0.72) {
           // Floating fly line: fat, and the surface takes hold of it hard.
-          section = 'line'; waterRate = 70; airRate = 2.0;
+          section = 'line'; waterRate = 70; airRate = 0.7;
           opts = { buoy: 0, mass: lineMass, floats: true, draft: 0.0015, floatK: 90 };
         } else if (i < indIndex) {
           // Greased leader butt, floating but lighter on the water.
-          section = 'butt'; waterRate = 35; airRate = 1.1;
+          section = 'butt'; waterRate = 35; airRate = 0.9;
           opts = { buoy: 0, mass: monoMass, floats: true, draft: 0.002, floatK: 60 };
         } else if (i === indIndex) {
-          section = 'indicator'; waterRate = ind.rate; airRate = 1.6;
+          // A foam ball is nearly all drag: it kills the whip at the end of a cast.
+          section = 'indicator'; waterRate = ind.rate; airRate = 1.7;
           opts = { buoy: 0, mass: ind.mass, floats: true, draft: ind.r * 0.55, floatK: ind.floatK };
         } else {
-          section = 'tippet'; waterRate = 55 * (c.tippet / 0.14); airRate = 0.8;
+          section = 'tippet'; waterRate = 55 * (c.tippet / 0.14); airRate = 1.5;
         }
       } else if (f >= c.sighterFrom && f <= c.sighterTo) {
         section = 'sighter';
@@ -143,7 +145,8 @@
         invMass: i === 0 ? 0 : 1 / (isPoint ? pointMass : opts.mass),
         buoy: isPoint ? BUOY.fly : opts.buoy,
         waterRate: isPoint ? G * BUOY.fly / beadSinkRate(c.pointBead) : waterRate,
-        airRate: isPoint ? 0.45 : airRate,
+        airRate: isPoint ? (indicator ? 0.9 : 0.45) : airRate,
+        airQuad: indicator ? (isPoint ? 0.05 : (section === 'line' ? 0.04 : 0.14)) : 0,
         section: isPoint ? 'point' : section,
         pinned: i === 0,
         floats: !isPoint && opts.floats,
@@ -271,7 +274,8 @@
         nd.vy += (turb.y - nd.vy) * k;
         nd.vy -= G * nd.buoy * dt;
       } else {
-        var ka = 1 - Math.exp(-nd.airRate * dt);
+        var spd = Math.hypot(nd.vx, nd.vy);
+        var ka = 1 - Math.exp(-(nd.airRate + nd.airQuad * spd) * dt);
         nd.vx += (0 - nd.vx) * ka;
         nd.vy += (0 - nd.vy) * ka;
         nd.vy -= G * dt;

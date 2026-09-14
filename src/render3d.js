@@ -1493,7 +1493,12 @@
     var side = (lx * px + ly * py) / ll;           // which side the line pulls to
     var sgn = Math.abs(side) > 0.08 ? -Math.sign(side) : (py > 0 ? 1 : -1);
     var load = Math.min(1.1, hud.tension || 0);
-    var belly = 0.03 + rig.contact * 0.05 + load * 0.48;
+    // A casting stroke loads the blank too: the hand leads and the tip lags.
+    var lagx = g.tipTarget.x - tx, lagy = g.tipTarget.y - ty;
+    var lagSide = (lagx * px + lagy * py);
+    var castLoad = Math.min(0.9, Math.abs(lagSide));
+    if (castLoad > 0.03 && castLoad > load * 0.5) sgn = lagSide > 0 ? 1 : -1;
+    var belly = 0.03 + rig.contact * 0.05 + load * 0.48 + castLoad * 0.45;
     var pts = [];
     var rz = this.rigZ, hz = 0.02;
     // With a fly line the tip stays at your side and the line crosses the
@@ -1529,9 +1534,15 @@
       // the wave crests so the water does not hide it between them.
       if (nodes[k].floats && ny > -0.06 && ny < 0.04) ny = 0.03;
       var zf = nodes[k].zf;
-      // Near the tip the line starts where the rod actually is, in the stroke
-      // plane; by the indicator it is in the lane.
-      lp.push({ x: nodes[k].x + (1 - zf) * (tip3.x - tx), y: ny, z: tip3.z + (rz - tip3.z) * zf });
+      if (indi && nodes[k].y > 0.05 && nodes[k].section !== 'tippet' && nodes[k].section !== 'point') {
+        // Line in the air flies in the stroke plane — up and across, or back
+        // over the shoulder on the back cast.
+        var ap = this._toStroke(nodes[k].x, ny, { x: 0, y: 0, z: 0 });
+        lp.push(ap);
+      } else {
+        // On the water it runs from where the rod is out to the lane.
+        lp.push({ x: nodes[k].x + (1 - zf) * (tip3.x - tx), y: ny, z: tip3.z + (rz - tip3.z) * zf });
+      }
     }
     this.leader.set(lp);
     var styleKey = (rig.indicator ? 'i' : 'e') + rig.indicatorIndex;
@@ -1551,7 +1562,7 @@
       var ind = rig.indicatorNode();
       var ir = rig.indicatorSpec.r;
       this.indicator.position.set(ind.x, Math.max(ind.y, -0.05) + 0.012, rz);
-      this.indicator.scale.setScalar(ir * 3.0);   // drawn well up in size so it reads from the bank
+      this.indicator.scale.setScalar(ir * 2.0);   // drawn a size up so it reads from the bank
       this.indicator.rotation.z = Math.sin(this.t * 3.1) * 0.12 + clamp(ind.vx - g.river.surfaceSpeed(ind.x), -0.5, 0.5) * 0.5;
     } else {
       var sp = [];
