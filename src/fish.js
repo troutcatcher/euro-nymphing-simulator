@@ -89,7 +89,9 @@
 
     var u = river.speedAt(node.x, node.y);
     var dragErr = Math.hypot(node.vx - u, node.vy * 0.6);
-    var dead = clamp(1 - dragErr / 0.34, 0, 1);
+    // Under an indicator the nymph is towed at the surface's speed however
+    // well you fish it, so trout are judged to accept a little more of that.
+    var dead = clamp(1 - dragErr / (0.34 * (river.dragTolerance || 1)), 0, 1);
 
     var above = river.heightAboveBed(node.x, node.y);
     var band = river.preset.feedBand || 0.42;

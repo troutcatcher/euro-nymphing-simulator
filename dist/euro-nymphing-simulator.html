@@ -408,7 +408,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     <div id="overlay">
       <div id="topbar">
         <div id="hud-mini">
-          <div class="mini"><span>Contact</span><div class="track"><div class="fill" id="m-contact"></div></div><em id="m-contact-v">—</em></div>
+          <div class="mini"><span id="m-contact-l">Contact</span><div class="track"><div class="fill" id="m-contact"></div></div><em id="m-contact-v">—</em></div>
           <div class="mini"><span>Off bed</span><div class="track"><div class="fill" id="m-depth"></div></div><em id="m-depth-v">—</em></div>
           <div class="mini"><span>Drag</span><div class="track"><div class="fill" id="m-drag"></div></div><em id="m-drag-v">—</em></div>
           <div class="mini" id="m-fight" hidden><span>Tippet</span><div class="track"><div class="fill" id="m-tension"></div></div><em id="m-tension-v">—</em></div>
@@ -425,17 +425,22 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
   <aside id="panel">
     <h1>Euro Nymphing Simulator</h1>
-    <p class="sub">Tight-line contact, drift depth, and the take — read the sighter.</p>
+    <p class="sub">Drift depth, drag, and the take — read the sighter, or the indicator.</p>
 
     <section id="drift-section">
       <h2>Drift</h2>
 
       <div class="meter">
-        <div class="meter-head"><span>Contact</span><span id="contact-val">—</span></div>
+        <div class="meter-head"><span id="contact-label">Contact</span><span id="contact-val">—</span></div>
         <div class="track">
           <div class="band" id="contact-band"></div>
           <div class="fill" id="contact-fill"></div>
         </div>
+      </div>
+
+      <div class="meter" id="slack-meter" hidden>
+        <div class="meter-head"><span>Line on the water</span><span id="slack-val">—</span></div>
+        <div class="track"><div class="fill" id="slack-fill"></div></div>
       </div>
 
       <div class="meter">
@@ -466,6 +471,29 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     </section>
 
     <section>
+      <h2>Method</h2>
+      <label class="field">Technique
+        <select id="method">
+          <option value="euro">Tight line — sighter, no line on the water</option>
+          <option value="indicator">Indicator — floating line, bobber, sunk nymph</option>
+        </select>
+      </label>
+      <div id="indicator-fields" hidden>
+        <label class="field">Nymph under the indicator — <span id="ind-depth-val">1.2 m</span>
+          <input type="range" id="ind-depth" min="0.6" max="2.4" step="0.1" value="1.2">
+        </label>
+        <label class="field">Indicator
+          <select id="ind-size">
+            <option value="small">Small — sensitive, easy to sink</option>
+            <option value="medium" selected>Medium</option>
+            <option value="large">Large — floats a heavy rig, drags more</option>
+          </select>
+        </label>
+        <p class="sub" style="margin:6px 0 0">The fly line floats and the surface takes hold of it, so a belly of line tows the indicator. Mend with a flick of the rod, strip comes in on its own, and set at any stall, twitch or dip — by the time it goes under you are late.</p>
+      </div>
+    </section>
+
+    <section>
       <h2>Water</h2>
       <label class="field">Beat
         <select id="preset">
@@ -483,7 +511,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       <label class="field">Point fly bead — <span id="bead-val">3.5 mm</span>
         <input type="range" id="bead" min="2.5" max="4.5" step="1" value="3.5">
       </label>
-      <label class="field">Working leader, tip to point fly — <span id="leader-val">3.2 m</span>
+      <label class="field"><span id="leader-label">Working leader, tip to point fly</span> — <span id="leader-val">3.2 m</span>
         <input type="range" id="leader" min="2.4" max="4.6" step="0.2" value="3.2">
       </label>
       <label class="field">Tippet
@@ -1136,6 +1164,14 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
  *   - a tungsten bead is mass-dominated, so it keeps sinking through that belly;
  *   - the segment constraints only ever *pull*, never push, so slack is real
  *     slack and a take telegraphs up the leader only when you are in contact.
+ *
+ * The same rope fishes two ways. Tight-line (Euro): mono from the tip to the
+ * flies, nothing on the surface. Indicator: a floating fly line and greased
+ * leader lying on the water out to a buoyant indicator, and a sunk tippet and
+ * nymph hanging under it. Floating sections ride the surface current, which
+ * is what drags the indicator when the line bellies; the take shows as the
+ * indicator stalling or dipping; and the hookset first has to take the slack
+ * line off the water.
  */
 (function (EN) {
   'use strict';
@@ -1149,6 +1185,15 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   };
 
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  // Strike indicators: radius, how hard the surface current takes hold of
+  // them (relaxation rate), and how stiffly they float back up when pulled
+  // under. A big one drags more and is harder for a fish to sink.
+  var INDICATORS = {
+    small:  { r: 0.011, rate: 20, floatK: 45,  mass: 0.00025 },
+    medium: { r: 0.016, rate: 28, floatK: 70,  mass: 0.00060 },
+    large:  { r: 0.022, rate: 36, floatK: 105, mass: 0.00120 }
+  };
 
   /** Sink rate in still water for a given tungsten bead, m/s. */
   function beadSinkRate(mm) {
@@ -1168,6 +1213,9 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     this.airRate = opts.airRate;
     this.section = opts.section;
     this.pinned = !!opts.pinned;
+    this.floats = !!opts.floats;      // rides the surface rather than sinking
+    this.draft = opts.draft || 0;     // how deep it sits when floating, metres
+    this.floatK = opts.floatK || 0;   // stiffness of the return to the waterline
   }
 
   var DEFAULTS = {
@@ -1180,7 +1228,12 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     dropperAt: 0.76,     // fraction along the leader
     dropperTag: 0.15,    // tag length, metres
     tippet: 0.18,        // mm
-    useDropper: true
+    useDropper: true,
+    // Indicator style: leaderLength is then line and leader from tip to the
+    // indicator, and the nymph hangs indicatorDepth below it.
+    style: 'euro',       // 'euro' | 'indicator'
+    indicatorDepth: 1.2, // metres, indicator to point fly
+    indicatorSize: 'medium'
   };
 
   function Rig(config) {
@@ -1194,19 +1247,45 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     if (config) for (var j in config) c[j] = config[j];
 
     var n = c.nodes;
-    this.seg = c.leaderLength / (n - 1);
+    var indicator = c.style === 'indicator';
+    this.indicator = indicator;
+    // The whole rope, tip to point fly.
+    this.total = indicator ? c.leaderLength + c.indicatorDepth : c.leaderLength;
+    this.seg = this.total / (n - 1);
     this.nodes = [];
 
-    // Mono mass per node: ~0.55 g per metre of leader.
+    // Mono mass per node: ~0.55 g per metre of leader; fly line about 1.1 g/m.
     var monoMass = 0.00055 * this.seg;
+    var lineMass = 0.0011 * this.seg;
     var pointMass = 0.00008 * Math.pow(c.pointBead, 3) / 27; // ~0.3 g at 3.5 mm
     var dropperMass = 0.00008 * Math.pow(c.dropperBead, 3) / 27;
+    var ind = INDICATORS[c.indicatorSize] || INDICATORS.medium;
+    this.indicatorSpec = ind;
+    var indIndex = indicator ? Math.round((c.leaderLength / this.total) * (n - 1)) : -1;
+    this.indicatorIndex = indIndex;
 
     for (var i = 0; i < n; i++) {
       var f = i / (n - 1);
       var section = 'butt';
       var waterRate = 95, airRate = 1.1;
-      if (f >= c.sighterFrom && f <= c.sighterTo) {
+      var opts = { buoy: BUOY.mono, mass: monoMass };
+      var isPoint = (i === n - 1);
+      if (indicator) {
+        if (i < indIndex * 0.72) {
+          // Floating fly line: fat, and the surface takes hold of it hard.
+          section = 'line'; waterRate = 70; airRate = 2.0;
+          opts = { buoy: 0, mass: lineMass, floats: true, draft: 0.0015, floatK: 90 };
+        } else if (i < indIndex) {
+          // Greased leader butt, floating but lighter on the water.
+          section = 'butt'; waterRate = 35; airRate = 1.1;
+          opts = { buoy: 0, mass: monoMass, floats: true, draft: 0.002, floatK: 60 };
+        } else if (i === indIndex) {
+          section = 'indicator'; waterRate = ind.rate; airRate = 1.6;
+          opts = { buoy: 0, mass: ind.mass, floats: true, draft: ind.r * 0.55, floatK: ind.floatK };
+        } else {
+          section = 'tippet'; waterRate = 55 * (c.tippet / 0.14); airRate = 0.8;
+        }
+      } else if (f >= c.sighterFrom && f <= c.sighterTo) {
         section = 'sighter';
         waterRate = 115; airRate = 1.5;
       } else if (f > c.sighterTo) {
@@ -1216,23 +1295,33 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
         waterRate = 55 * (c.tippet / 0.14);
         airRate = 0.8;
       }
-      var isPoint = (i === n - 1);
       this.nodes.push(new Node(0, 0, {
-        invMass: i === 0 ? 0 : 1 / (isPoint ? pointMass : monoMass),
-        buoy: isPoint ? BUOY.fly : BUOY.mono,
+        invMass: i === 0 ? 0 : 1 / (isPoint ? pointMass : opts.mass),
+        buoy: isPoint ? BUOY.fly : opts.buoy,
         waterRate: isPoint ? G * BUOY.fly / beadSinkRate(c.pointBead) : waterRate,
         airRate: isPoint ? 0.45 : airRate,
         section: isPoint ? 'point' : section,
-        pinned: i === 0
+        pinned: i === 0,
+        floats: !isPoint && opts.floats,
+        draft: opts.draft,
+        floatK: opts.floatK
       }));
     }
 
     this.pointIndex = n - 1;
-    this.sighterFrom = Math.round(c.sighterFrom * (n - 1));
-    this.sighterTo = Math.round(c.sighterTo * (n - 1));
+    if (indicator) {
+      // The indicator is the sighter now: it is the thing you read.
+      this.sighterFrom = this.sighterTo = indIndex;
+    } else {
+      this.sighterFrom = Math.round(c.sighterFrom * (n - 1));
+      this.sighterTo = Math.round(c.sighterTo * (n - 1));
+    }
 
-    // The dropper hangs off a tag part way down and rides higher in the column.
-    this.dropperHost = Math.round(c.dropperAt * (n - 1));
+    // The dropper hangs off a tag part way down and rides higher in the column
+    // — under an indicator, part way down the tippet.
+    this.dropperHost = indicator ? indIndex + Math.round((n - 1 - indIndex) * 0.55)
+                                 : Math.round(c.dropperAt * (n - 1));
+    this.dropperFrac = this.dropperHost / (n - 1);
     this.dropperIndex = -1;
     if (c.useDropper) {
       this.dropperIndex = this.nodes.length;
@@ -1247,14 +1336,18 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     }
 
     this.contact = 0;
+    this.slack = 0;        // indicator style: line bellied on the water, metres
     this.tension = 0;
     this.bedHits = 0;      // beads knocking the stones since the last read
     this.anchor = null;      // set while a fish has the fly
     this.snagged = false;
-    this.lineOut = c.leaderLength; // shortened by hand while playing a fish
+    this.lineOut = this.total; // shortened by hand while playing a fish
   };
 
   Rig.prototype.point = function () { return this.nodes[this.pointIndex]; };
+  Rig.prototype.indicatorNode = function () {
+    return this.indicatorIndex >= 0 ? this.nodes[this.indicatorIndex] : null;
+  };
   Rig.prototype.dropper = function () {
     return this.dropperIndex >= 0 ? this.nodes[this.dropperIndex] : null;
   };
@@ -1278,7 +1371,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     }
     this.anchor = null;
     this.snagged = false;
-    this.lineOut = this.config.leaderLength;
+    this.lineOut = this.total;
   };
 
   Rig.prototype.setPointVelocity = function (vx, vy) {
@@ -1304,7 +1397,16 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       if (nd.pinned) continue;
 
       var submerged = nd.y < 0;
-      if (submerged) {
+      if (nd.floats && nd.y < 0.04) {
+        // On the surface: carried by the surface current, held at its
+        // waterline by buoyancy, and pushed back up if something pulls it under.
+        var us = river.surfaceSpeed(nd.x);
+        var st = river.turbulenceAt(nd.x, -0.01, river.time);
+        var kf = 1 - Math.exp(-nd.waterRate * dt);
+        nd.vx += ((us + st.x * 0.6) - nd.vx) * kf;
+        var y0 = -nd.draft;
+        nd.vy += (-(nd.y - y0) * nd.floatK - nd.vy * 9) * dt + st.y * 0.4 * dt;
+      } else if (submerged) {
         var u = river.speedAt(nd.x, nd.y);
         var turb = river.turbulenceAt(nd.x, nd.y, river.time);
         // Exponential relaxation toward the water: stable at any drag strength,
@@ -1348,13 +1450,15 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
   Rig.prototype._solveSegments = function () {
     var n = this.config.nodes;
-    var rest = this.seg;
-    // Shorten the working length when the angler gathers line during a fight.
-    var scale = this.lineOut / this.config.leaderLength;
-    rest *= scale;
+    // Shorten the working length when the angler gathers or strips line. Under
+    // an indicator only the line above it shortens; the drop to the nymph is
+    // the depth you set and stays put.
+    var scale = this.lineScale();
+    var restLine = this.seg * scale, restDrop = this.indicator ? this.seg : restLine;
 
     for (var i = 0; i < n - 1; i++) {
       var a = this.nodes[i], b = this.nodes[i + 1];
+      var rest = i < this.indicatorIndex ? restLine : restDrop;
       var dx = b.x - a.x, dy = b.y - a.y;
       var d = Math.hypot(dx, dy);
       if (d < 1e-9) continue;
@@ -1427,10 +1531,28 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     }
   };
 
+  /** The shortest the rope can be gathered to: the drop plus a rod's tip of line. */
+  Rig.prototype.minLineOut = function () {
+    return this.indicator ? this.config.indicatorDepth + 0.5 : 0.85;
+  };
+
+  /** Fraction of the line (above the indicator, or the whole leader) in play. */
+  Rig.prototype.lineScale = function () {
+    if (!this.indicator) return this.lineOut / this.total;
+    return clamp((this.lineOut - this.config.indicatorDepth) / this.config.leaderLength, 0.08, 1);
+  };
+
   /** Leader in play out to a given fly — shorter if it is the dropper. */
   Rig.prototype.lengthTo = function (node) {
+    if (this.indicator) {
+      var line = this.lineOut - this.config.indicatorDepth;
+      if (node && node.section === 'dropper') {
+        return line + (this.dropperHost - this.indicatorIndex) * this.seg + this.config.dropperTag;
+      }
+      return this.lineOut;
+    }
     if (node && node.section === 'dropper') {
-      return this.lineOut * this.config.dropperAt + this.config.dropperTag;
+      return this.lineOut * this.dropperFrac + this.config.dropperTag;
     }
     return this.lineOut;
   };
@@ -1439,7 +1561,25 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     var p = (this.anchor && this.anchor.node) || this.point();
     var span = this.lengthTo(p);
     var chord = Math.hypot(p.x - tip.x, p.y - tip.y);
-    this.contact = clamp(chord / span, 0, 1);
+    if (this.indicator) {
+      // Contact is the tippet under the indicator: only a fairly straight
+      // tippet lets a take move the indicator. Slack is the line on the water
+      // between rod tip and indicator that a hookset has to pick up first.
+      var ind = this.indicatorNode();
+      var down = Math.hypot(p.x - ind.x, p.y - ind.y);
+      var downSpan = p.section === 'dropper' ? (this.dropperHost - this.indicatorIndex) * this.seg + this.config.dropperTag
+                                             : (this.pointIndex - this.indicatorIndex) * this.seg;
+      this.contact = clamp(down / Math.max(0.05, downSpan), 0, 1);
+      var rope = 0;
+      for (var i = 0; i < this.indicatorIndex; i++) {
+        var a = this.nodes[i], b = this.nodes[i + 1];
+        rope += Math.hypot(b.x - a.x, b.y - a.y);
+      }
+      this.slack = Math.max(0, rope - Math.hypot(ind.x - tip.x, ind.y - tip.y));
+    } else {
+      this.contact = clamp(chord / span, 0, 1);
+      this.slack = 0;
+    }
 
     // How hard the leader is loaded, normalised so 1.0 is roughly a straight,
     // fully weighted rig. Used for the sighter read and for the fight.
@@ -1447,8 +1587,23 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     this.tension = Math.max(0, stretch) * 40 + Math.max(0, this.contact - 0.9) * 2.2;
   };
 
+  /**
+   * What a hookset has to work with: tight-line, the contact itself; under an
+   * indicator, the tippet's contact discounted by the slack line the lift
+   * must pick up off the water before it reaches the fish.
+   */
+  Rig.prototype.hookContact = function () {
+    if (!this.indicator) return this.contact;
+    return this.contact * clamp(1 - Math.max(0, this.slack - 0.25) / 1.3, 0.15, 1);
+  };
+
   /** RMS speed of the sighter relative to the water — how much it is "talking". */
   Rig.prototype.sighterSignal = function (river) {
+    if (this.indicator) {
+      var ind = this.indicatorNode();
+      var us = river.surfaceSpeed(ind.x);
+      return Math.hypot(ind.vx - us, ind.vy * 2.0);
+    }
     var sum = 0, count = 0;
     for (var i = this.sighterFrom; i <= this.sighterTo; i++) {
       var nd = this.nodes[i];
@@ -1460,6 +1615,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   };
 
   EN.Rig = Rig;
+  EN.INDICATORS = INDICATORS;
   EN.beadSinkRate = beadSinkRate;
   EN.clamp = clamp;
 })(window.EN = window.EN || {});
@@ -1555,7 +1711,9 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
     var u = river.speedAt(node.x, node.y);
     var dragErr = Math.hypot(node.vx - u, node.vy * 0.6);
-    var dead = clamp(1 - dragErr / 0.34, 0, 1);
+    // Under an indicator the nymph is towed at the surface's speed however
+    // well you fish it, so trout are judged to accept a little more of that.
+    var dead = clamp(1 - dragErr / (0.34 * (river.dragTolerance || 1)), 0, 1);
 
     var above = river.heightAboveBed(node.x, node.y);
     var band = river.preset.feedBand || 0.42;
@@ -2018,6 +2176,26 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   Game.prototype.laneZ = function () { return EN.LANES[this.lane].z; };
 
   /**
+   * Under an indicator the free hand works the line: as the drift comes back
+   * down to you it strips line in so the belly on the water never grows past
+   * a mend's worth, and the next cast shoots it all back out.
+   */
+  Game.prototype._manageLine = function (dt) {
+    var rig = this.rig;
+    var ind = rig.indicatorNode();
+    var p = rig.point();
+    if (p.y >= 0 && p.vx < -0.3) {
+      // Flies flying upstream: line shoots through the guides.
+      rig.lineOut = Math.min(rig.total, rig.lineOut + dt * 9);
+      return;
+    }
+    if (ind.y > 0.04) return;
+    var chord = Math.hypot(ind.x - this.tip.x, ind.y - this.tip.y);
+    var want = clamp(chord + 0.55 + rig.config.indicatorDepth, rig.minLineOut(), rig.total);
+    if (want < rig.lineOut) rig.lineOut = Math.max(want, rig.lineOut - dt * 0.9);
+  };
+
+  /**
    * How far the tip can be held upstream in the current lane: the rod's
    * length less what it spends reaching across.
    */
@@ -2084,6 +2262,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
   Game.prototype.setRig = function (patch) {
     this.rig.configure(patch);
+    this.river.dragTolerance = this.rig.indicator ? 1.7 : 1;
     this.resetDrift();
   };
 
@@ -2095,7 +2274,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   Game.prototype.resetDrift = function () {
     this.rig.anchor = null;
     this.rig.gathering = false;
-    this.rig.lineOut = this.rig.config.leaderLength;
+    this.rig.lineOut = this.rig.total;
     this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 0.9, this.tip.y - 1.3);
     this.phase = 'fishing';
     this.phaseTime = 0;
@@ -2127,7 +2306,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
   Game.prototype.cast = function () {
     if (this.phase === 'fighting' || this.phase === 'netting') return;
-    var reach = this.rig.config.leaderLength * 0.82;
+    var reach = this.rig.total * 0.82;
     var tx = clamp(this.tip.x - reach, EN.WORLD.xMin + 0.4, this.tip.x - 0.9);
     var ty = 0.22;
 
@@ -2164,7 +2343,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
     var fish = this.school.active();
     if (fish && fish.state === 'taken') {
-      var chance = fish.hookChance(this.rig.contact, fish.holdTime);
+      var chance = fish.hookChance(this.rig.hookContact(), fish.holdTime);
       if (Math.random() < chance) {
         fish.hookUp();
         this._anchorTo(fish);
@@ -2172,7 +2351,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
         // slack, so the fight starts with a bend in the rod.
         var fly = this.rig.anchor.node;
         var span = Math.hypot(fly.x - this.tip.x, fly.y - this.tip.y);
-        this.rig.lineOut = clamp(span - 0.25, 0.9, this.rig.config.leaderLength);
+        this.rig.lineOut = clamp(span - 0.25, this.rig.minLineOut() + 0.05, this.rig.total);
         this.phase = 'fighting';
         this.phaseTime = 0;
         this.driftActive = false;
@@ -2188,10 +2367,14 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
         this.stats.missed++;
         this.say('Lifted into it and came up empty.', 'bad');
         var late = fish.holdTime / Math.max(0.1, fish.holdWindow);
-        if (late > 0.55 && this.rig.contact >= 0.8) {
-          this.coach('A shade slow. Set the moment the sighter does anything odd — do not wait to be sure.');
+        if (this.rig.indicator && this.rig.slack > 0.6) {
+          this.coach('Too much line on the water — the lift never reached the fish. Mend it straighter, or hold more line off the surface.');
+        } else if (late > 0.55 && this.rig.hookContact() >= 0.8) {
+          this.coach(this.rig.indicator ? 'A shade slow. Set the moment the indicator does anything odd — do not wait for it to go under.'
+                                        : 'A shade slow. Set the moment the sighter does anything odd — do not wait to be sure.');
         } else if (this.rig.contact < 0.8) {
-          this.coach('There was too much slack to drive the hook. Keep the sighter just taut.');
+          this.coach(this.rig.indicator ? 'The tippet was slack under the indicator, so the take barely showed. A touch more weight keeps it hanging straight.'
+                                        : 'There was too much slack to drive the hook. Keep the sighter just taut.');
         } else {
           this.coach('Close. A shorter, faster sweep downstream sticks more of those.');
         }
@@ -2231,7 +2414,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
     this.rig.gathering = this.gathering && this.phase === 'fighting';
     if (this.phase === 'fighting') {
-      var min = 0.85, max = this.rig.config.leaderLength + 2.2;
+      var min = this.rig.minLineOut(), max = this.rig.total + 2.2;
       var load = this.hudState().tension;
       if (this.gathering) {
         this.rig.lineOut = Math.max(min, this.rig.lineOut - dt * 0.5);
@@ -2241,6 +2424,8 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
         this.rig.lineOut = Math.min(max, this.rig.lineOut + dt * Math.max(0, load - 0.55) * 1.7);
       }
     }
+
+    if (this.rig.indicator && this.phase === 'fishing') this._manageLine(dt);
 
     var steps = Math.max(1, Math.min(8, Math.round(dt / PHYS_DT)));
     var sub = dt / steps;
@@ -2341,7 +2526,11 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
           this.rig.anchor = null;
           if (this.rig.contact < 0.78) {
             this.say('A fish ate and spat it — you never saw it.', 'bad');
-            this.coach('Slack hides takes. Lead the sighter downstream so it stays just tight.');
+            this.coach(this.rig.indicator ? 'A slack tippet hides takes. Add weight or shorten the drop so the nymph hangs straight under the indicator.'
+                                          : 'Slack hides takes. Lead the sighter downstream so it stays just tight.');
+          } else if (this.rig.indicator) {
+            this.say('That was a fish. The indicator told you — you did not lift.', 'bad');
+            this.coach('Lift at any stall, twitch or dip. Being wrong costs you a drift; being slow costs you the fish.');
           } else if (this.river.preset.blind) {
             this.say('That was a fish. The sighter told you — you did not lift.', 'bad');
             this.coach('On water like this, set at anything odd. Being wrong costs you a drift; being slow costs you the fish.');
@@ -2464,7 +2653,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     this.driftActive = false;
     this.driftLocked = true;
     this.dryTime = 0;
-    this.rig.lineOut = this.rig.config.leaderLength;
+    this.rig.lineOut = this.rig.total;
 
     fish.state = 'landed';
     this.stats.landed++;
@@ -2481,7 +2670,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     this.driftActive = false;
     this.driftLocked = true;
     this.dryTime = 0;
-    this.rig.lineOut = this.rig.config.leaderLength;
+    this.rig.lineOut = this.rig.total;
 
     if (EN.audio) {
       EN.audio.setFight(null);
@@ -2508,7 +2697,9 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   Game.prototype._trackDrift = function (dt) {
     var p = this.rig.point();
     var wet = p.y < 0;
-    var past = p.x > this.grip.x - 0.35;
+    // Under an indicator the drift is over when the indicator swings past you.
+    var lead = this.rig.indicator ? this.rig.indicatorNode() : p;
+    var past = lead.x > this.grip.x - 0.35;
     this._trackCast(p, wet);
 
     if (!wet) {
@@ -2531,7 +2722,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     this.dryTime = 0;
     // Once the flies have swung past you they have to be put back upstream
     // before they count as a new drift.
-    if (this.driftLocked && !past && p.x < this.grip.x - 1.2) this.driftLocked = false;
+    if (this.driftLocked && !past && lead.x < this.grip.x - 1.2) this.driftLocked = false;
 
     if (!this.driftActive) {
       if (this.driftLocked || past) return;
@@ -2565,10 +2756,24 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
     if (above < 0.28) d.zone += dt;
     if (dragErr < 0.14) d.dead += dt;
-    if (this.rig.contact > 0.82 && this.rig.contact < 0.998) d.contact += dt;
+    if (this.rig.indicator) {
+      if (this.rig.contact > 0.75 && this.rig.slack < 0.9) d.contact += dt;
+    } else if (this.rig.contact > 0.82 && this.rig.contact < 0.998) d.contact += dt;
 
     if (d.submerged > 1.2) {
-      if (above > 0.55) {
+      if (this.rig.indicator) {
+        var ind = this.rig.indicatorNode();
+        var indDrag = ind.vx - river.surfaceSpeed(ind.x);
+        if (above > 0.55) {
+          this.coach('The nymph is riding high. Set the indicator deeper, or go heavier so it gets down under it.');
+        } else if (this.rig.slack > 1.1) {
+          this.coach('Big belly of line on the water — mend it upstream with a flick, or keep more of it off the surface.');
+        } else if (Math.abs(indDrag) > 0.25) {
+          this.coach('The line is towing the indicator. Mend so it drifts at the speed of the bubbles beside it.');
+        } else if (Math.abs(p.vx) < 0.05 && above < 0.05) {
+          this.coach('Hung on the bottom. Shallower under the indicator, or a lighter bug.');
+        }
+      } else if (above > 0.55) {
         this.coach('You are riding high. Flick the flies further upstream, go heavier, or lengthen the leader.');
       } else if (this.rig.contact < 0.72) {
         this.coach('Big belly in the leader — raise the tip and lead the sighter with the drift.');
@@ -2617,6 +2822,9 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       totalDepth: river.depth(p.x),
       drag: p.y < 0 ? p.vx - u : 0,
       contact: this.rig.contact,
+      slack: this.rig.slack,
+      style: this.rig.indicator ? 'indicator' : 'euro',
+      indicator: this.rig.indicatorNode(),
       tension: fish && fish.state === 'hooked' ? (fish.tension || 0) : 0,
       stamina: fish && fish.state === 'hooked' ? fish.stamina : 0,
       lineOut: this.rig.lineOut,
@@ -3809,6 +4017,33 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     var nodes = rig.nodes;
     var n = rig.config.nodes;
 
+    if (rig.indicator) {
+      // Floating fly line, greased butt, a bobber, then a whisper of tippet.
+      var lineEnd = Math.floor(rig.indicatorIndex * 0.72);
+      this._strokeRange(nodes, 0, lineEnd, 'rgba(178,190,96,0.95)', 2.6);
+      this._strokeRange(nodes, lineEnd, rig.indicatorIndex, 'rgba(214,206,178,0.75)', 1.4);
+      this._strokeRange(nodes, rig.indicatorIndex, n - 1, 'rgba(200,225,232,0.42)', 1.1);
+      var ind = rig.indicatorNode();
+      var ir = Math.max(3, rig.indicatorSpec.r * this.scale);
+      var ix = this.sx(ind.x), iy = this.sy(ind.y);
+      ctx.save();
+      ctx.shadowColor = '#ff8a2a'; ctx.shadowBlur = 10;
+      var ig = ctx.createRadialGradient(ix - ir * 0.3, iy - ir * 0.3, ir * 0.15, ix, iy, ir);
+      ig.addColorStop(0, '#ffd9a8'); ig.addColorStop(0.55, '#ff8a2a'); ig.addColorStop(1, '#c4561a');
+      ctx.fillStyle = ig;
+      ctx.beginPath(); ctx.arc(ix, iy, ir, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      var dd = rig.dropper();
+      if (dd) {
+        var hh = nodes[rig.dropperHost];
+        ctx.strokeStyle = 'rgba(200,225,232,0.42)'; ctx.lineWidth = 1.1;
+        ctx.beginPath(); ctx.moveTo(this.sx(hh.x), this.sy(hh.y)); ctx.lineTo(this.sx(dd.x), this.sy(dd.y)); ctx.stroke();
+        this._drawFly(dd, rig.config.dropperBead, '#c0d8c0');
+      }
+      this._drawFly(rig.point(), rig.config.pointBead, '#d9b24a');
+      return;
+    }
+
     // Butt / running line: dull, low-vis.
     this._strokeRange(nodes, 0, rig.sighterFrom, 'rgba(214,206,178,0.75)', 1.5);
     // Tippet: nearly invisible, just a hint.
@@ -3919,7 +4154,8 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
    'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill',
    'btn-full', 'btn-sound', 'hud-mini', 'rotate-hint', 'm-contact', 'm-contact-v', 'm-depth',
    'm-depth-v', 'm-drag', 'm-drag-v', 'm-fight', 'm-tension', 'm-tension-v',
-   'lane-badge'
+   'lane-badge', 'method', 'indicator-fields', 'ind-depth', 'ind-depth-val', 'ind-size',
+   'leader-label', 'contact-label', 'slack-meter', 'slack-val', 'slack-fill', 'm-contact-l'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
@@ -4148,6 +4384,39 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     game.setRig({ pointBead: mm, dropperBead: Math.max(2.0, mm - 1) });
   });
 
+  // ---- method: tight line or indicator ----------------------------------------
+
+  function applyMethod() {
+    var ind = el.method && el.method.value === 'indicator';
+    if (el['indicator-fields']) el['indicator-fields'].hidden = !ind;
+    // The leader slider is line out to the indicator in that style, with a
+    // longer range to match.
+    var cur = parseFloat(el.leader.value);
+    if (ind) {
+      el.leader.min = '4'; el.leader.max = '9'; el.leader.step = '0.5';
+      el.leader.value = cur < 4 ? '6' : String(cur);
+      el['leader-label'].textContent = 'Line out, tip to indicator';
+      el['contact-label'].textContent = 'Tippet hanging straight';
+      el['m-contact-l'].textContent = 'Tippet';
+    } else {
+      el.leader.min = '2.4'; el.leader.max = '4.6'; el.leader.step = '0.2';
+      el.leader.value = cur > 4.6 ? '3.2' : String(cur);
+      el['leader-label'].textContent = 'Working leader, tip to point fly';
+      el['contact-label'].textContent = 'Contact';
+      el['m-contact-l'].textContent = 'Contact';
+    }
+    var m = parseFloat(el.leader.value);
+    el['leader-val'].textContent = m.toFixed(1) + ' m';
+    var depth = parseFloat(el['ind-depth'].value);
+    el['ind-depth-val'].textContent = depth.toFixed(1) + ' m';
+    game.setRig({ style: ind ? 'indicator' : 'euro', leaderLength: m, indicatorDepth: depth, indicatorSize: el['ind-size'].value });
+  }
+  if (el.method) {
+    el.method.addEventListener('change', applyMethod);
+    el['ind-depth'].addEventListener('input', applyMethod);
+    el['ind-size'].addEventListener('change', applyMethod);
+  }
+
   el.leader.addEventListener('input', function () {
     var m = parseFloat(el.leader.value);
     el['leader-val'].textContent = m.toFixed(1) + ' m';
@@ -4193,6 +4462,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   var PHASE_TEXT = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>sweep the rod up</strong> to set',
+    driftingInd: 'Drifting — watch the indicator, <strong>sweep the rod up</strong> at any stall or dip',
     fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it',
     netting: 'Netting it…'
   };
@@ -4200,6 +4470,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   var PHASE_TEXT_TOUCH = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>flick up</strong> to set',
+    driftingInd: 'Drifting — watch the indicator, <strong>flick up</strong> at any stall or dip',
     fighting: 'Fish on — <strong>press and hold</strong> to gather line, let go to give it',
     netting: 'Netting it…'
   };
@@ -4218,18 +4489,29 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
     var cue = game.phase === 'netting' ? 'netting'
             : game.phase === 'fighting' ? 'fighting'
-            : (game.driftActive ? 'drifting' : 'idle');
+            : (game.driftActive ? (hud.style === 'indicator' ? 'driftingInd' : 'drifting') : 'idle');
     el.phase.innerHTML = game.paused
       ? 'Paused — <kbd>P</kbd> to resume'
       : (touchMode ? PHASE_TEXT_TOUCH : PHASE_TEXT)[cue];
 
-    // Contact: the band is where a take actually reaches you.
+    // Contact: the band is where a take actually reaches you. Under an
+    // indicator it is the tippet hanging straight, and the line on the water
+    // is its own meter.
+    var ind = hud.style === 'indicator';
     var c = hud.contact * 100;
     el['contact-val'].textContent = c.toFixed(0) + '%';
-    el['contact-band'].style.left = '82%';
-    el['contact-band'].style.width = '17%';
+    el['contact-band'].style.left = ind ? '75%' : '82%';
+    el['contact-band'].style.width = ind ? '25%' : '17%';
     setFill(el['contact-fill'], c,
-      c < 78 ? '#5b7f8c' : (c > 99.4 ? '#ef6b5e' : '#6fd18a'));
+      ind ? (c < 72 ? '#5b7f8c' : '#6fd18a') : (c < 78 ? '#5b7f8c' : (c > 99.4 ? '#ef6b5e' : '#6fd18a')));
+    if (el['slack-meter']) {
+      el['slack-meter'].hidden = !ind;
+      if (ind) {
+        el['slack-val'].textContent = hud.slack.toFixed(1) + ' m of belly';
+        setFill(el['slack-fill'], clamp(hud.slack / 1.6, 0, 1) * 100,
+          hud.slack < 0.6 ? '#6fd18a' : (hud.slack < 1.1 ? '#ffb03a' : '#ef6b5e'));
+      }
+    }
 
     if (hud.depth === null) {
       el['depth-val'].textContent = 'in the air';

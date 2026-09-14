@@ -20,7 +20,8 @@
    'lift', 'lift-sens', 'lift-val', 'lift-field', 'lift-read', 'lift-fill',
    'btn-full', 'btn-sound', 'hud-mini', 'rotate-hint', 'm-contact', 'm-contact-v', 'm-depth',
    'm-depth-v', 'm-drag', 'm-drag-v', 'm-fight', 'm-tension', 'm-tension-v',
-   'lane-badge'
+   'lane-badge', 'method', 'indicator-fields', 'ind-depth', 'ind-depth-val', 'ind-size',
+   'leader-label', 'contact-label', 'slack-meter', 'slack-val', 'slack-fill', 'm-contact-l'
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   // ---- input ---------------------------------------------------------------
@@ -249,6 +250,39 @@
     game.setRig({ pointBead: mm, dropperBead: Math.max(2.0, mm - 1) });
   });
 
+  // ---- method: tight line or indicator ----------------------------------------
+
+  function applyMethod() {
+    var ind = el.method && el.method.value === 'indicator';
+    if (el['indicator-fields']) el['indicator-fields'].hidden = !ind;
+    // The leader slider is line out to the indicator in that style, with a
+    // longer range to match.
+    var cur = parseFloat(el.leader.value);
+    if (ind) {
+      el.leader.min = '4'; el.leader.max = '9'; el.leader.step = '0.5';
+      el.leader.value = cur < 4 ? '6' : String(cur);
+      el['leader-label'].textContent = 'Line out, tip to indicator';
+      el['contact-label'].textContent = 'Tippet hanging straight';
+      el['m-contact-l'].textContent = 'Tippet';
+    } else {
+      el.leader.min = '2.4'; el.leader.max = '4.6'; el.leader.step = '0.2';
+      el.leader.value = cur > 4.6 ? '3.2' : String(cur);
+      el['leader-label'].textContent = 'Working leader, tip to point fly';
+      el['contact-label'].textContent = 'Contact';
+      el['m-contact-l'].textContent = 'Contact';
+    }
+    var m = parseFloat(el.leader.value);
+    el['leader-val'].textContent = m.toFixed(1) + ' m';
+    var depth = parseFloat(el['ind-depth'].value);
+    el['ind-depth-val'].textContent = depth.toFixed(1) + ' m';
+    game.setRig({ style: ind ? 'indicator' : 'euro', leaderLength: m, indicatorDepth: depth, indicatorSize: el['ind-size'].value });
+  }
+  if (el.method) {
+    el.method.addEventListener('change', applyMethod);
+    el['ind-depth'].addEventListener('input', applyMethod);
+    el['ind-size'].addEventListener('change', applyMethod);
+  }
+
   el.leader.addEventListener('input', function () {
     var m = parseFloat(el.leader.value);
     el['leader-val'].textContent = m.toFixed(1) + ' m';
@@ -294,6 +328,7 @@
   var PHASE_TEXT = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>sweep the rod up</strong> to set',
+    driftingInd: 'Drifting — watch the indicator, <strong>sweep the rod up</strong> at any stall or dip',
     fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it',
     netting: 'Netting it…'
   };
@@ -301,6 +336,7 @@
   var PHASE_TEXT_TOUCH = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>flick up</strong> to set',
+    driftingInd: 'Drifting — watch the indicator, <strong>flick up</strong> at any stall or dip',
     fighting: 'Fish on — <strong>press and hold</strong> to gather line, let go to give it',
     netting: 'Netting it…'
   };
@@ -319,18 +355,29 @@
 
     var cue = game.phase === 'netting' ? 'netting'
             : game.phase === 'fighting' ? 'fighting'
-            : (game.driftActive ? 'drifting' : 'idle');
+            : (game.driftActive ? (hud.style === 'indicator' ? 'driftingInd' : 'drifting') : 'idle');
     el.phase.innerHTML = game.paused
       ? 'Paused — <kbd>P</kbd> to resume'
       : (touchMode ? PHASE_TEXT_TOUCH : PHASE_TEXT)[cue];
 
-    // Contact: the band is where a take actually reaches you.
+    // Contact: the band is where a take actually reaches you. Under an
+    // indicator it is the tippet hanging straight, and the line on the water
+    // is its own meter.
+    var ind = hud.style === 'indicator';
     var c = hud.contact * 100;
     el['contact-val'].textContent = c.toFixed(0) + '%';
-    el['contact-band'].style.left = '82%';
-    el['contact-band'].style.width = '17%';
+    el['contact-band'].style.left = ind ? '75%' : '82%';
+    el['contact-band'].style.width = ind ? '25%' : '17%';
     setFill(el['contact-fill'], c,
-      c < 78 ? '#5b7f8c' : (c > 99.4 ? '#ef6b5e' : '#6fd18a'));
+      ind ? (c < 72 ? '#5b7f8c' : '#6fd18a') : (c < 78 ? '#5b7f8c' : (c > 99.4 ? '#ef6b5e' : '#6fd18a')));
+    if (el['slack-meter']) {
+      el['slack-meter'].hidden = !ind;
+      if (ind) {
+        el['slack-val'].textContent = hud.slack.toFixed(1) + ' m of belly';
+        setFill(el['slack-fill'], clamp(hud.slack / 1.6, 0, 1) * 100,
+          hud.slack < 0.6 ? '#6fd18a' : (hud.slack < 1.1 ? '#ffb03a' : '#ef6b5e'));
+      }
+    }
 
     if (hud.depth === null) {
       el['depth-val'].textContent = 'in the air';

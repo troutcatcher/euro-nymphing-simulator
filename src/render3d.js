@@ -1052,13 +1052,34 @@
     this.reel.rotation.x = Math.PI / 2;
     this.tackle.add(this.reel);
 
-    // Leader in two pieces so the sighter can glow unlit.
+    // Leader in two pieces so the sighter can glow unlit. The tube's radius
+    // and colour follow the rig's sections, so a floating fly line reads fat
+    // and olive and tippet reads as a thread.
     var rig = this.game.rig;
     var n = rig.config.nodes;
     this.leaderN = n;
-    this.leader = new DynTube(n, 5, function (s) { return s < 0.5 ? 0.0032 : 0.0018; },
-      new T.MeshStandardMaterial({ color: hex('#d8d2c2'), roughness: 0.4, metalness: 0.05 }));
+    this.leader = new DynTube(n, 6, function (s) {
+      var r = self.game.rig;
+      var nd = r.nodes[Math.round(s * (r.config.nodes - 1))];
+      if (r.indicator) return nd.section === 'line' ? 0.0012 : (nd.section === 'butt' ? 0.0005 : 0.00032);
+      return s < 0.5 ? 0.0032 : 0.0018;
+    }, new T.MeshStandardMaterial({ color: hex('#ffffff'), vertexColors: true, roughness: 0.45, metalness: 0.05 }));
+    this.leaderColors = new Float32Array(n * 6 * 3);
+    this.leader.geo.setAttribute('color', new T.BufferAttribute(this.leaderColors, 3));
+    this._leaderStyleKey = null;
     this.tackle.add(this.leader.mesh);
+
+    // A strike indicator: an orange foam ball with a pale top.
+    this.indicator = new T.Group();
+    var indBall = new T.Mesh(new T.SphereGeometry(1, 18, 14),
+      new T.MeshStandardMaterial({ color: hex('#ff7a1a'), roughness: 0.55, emissive: hex('#ff5a00'), emissiveIntensity: 0.18 }));
+    var indCap = new T.Mesh(new T.SphereGeometry(0.72, 14, 10),
+      new T.MeshStandardMaterial({ color: hex('#fff2dc'), roughness: 0.6 }));
+    indCap.position.y = 0.45;
+    this.indicator.add(indBall); this.indicator.add(indCap);
+    this.indicator.castShadow = true;
+    this.indicator.visible = false;
+    this.tackle.add(this.indicator);
 
     var sn = rig.sighterTo - rig.sighterFrom + 1;
     this.sighterN = sn;
@@ -1452,11 +1473,38 @@
     // Leader and sighter straight off the rig nodes.
     var nodes = rig.nodes, n = this.leaderN;
     var lp = [];
-    for (var k = 0; k < n; k++) lp.push({ x: nodes[k].x, y: nodes[k].y, z: rz });
+    for (var k = 0; k < n; k++) {
+      var ny = nodes[k].y;
+      // Floating line sits a hair under the mean surface; draw it just above
+      // the wave crests so the water does not hide it between them.
+      if (nodes[k].floats && ny > -0.06 && ny < 0.04) ny = 0.014;
+      lp.push({ x: nodes[k].x, y: ny, z: rz });
+    }
     this.leader.set(lp);
-    var sp = [];
-    for (var q = rig.sighterFrom; q <= rig.sighterTo; q++) sp.push({ x: nodes[q].x, y: nodes[q].y, z: rz });
-    this.sighter.set(sp);
+    var styleKey = (rig.indicator ? 'i' : 'e') + rig.indicatorIndex;
+    if (styleKey !== this._leaderStyleKey) {
+      this._leaderStyleKey = styleKey;
+      var lc = this.leaderColors, cLine = hex('#a9b95c'), cMono = hex('#d8d2c2'), cTip = hex('#dbe6ea');
+      for (var ci = 0; ci < n; ci++) {
+        var sec = nodes[ci].section;
+        var col = rig.indicator ? (sec === 'line' ? cLine : (sec === 'butt' ? cMono : cTip)) : cMono;
+        for (var cj = 0; cj < 6; cj++) { var ck = (ci * 6 + cj) * 3; lc[ck] = col.r; lc[ck + 1] = col.g; lc[ck + 2] = col.b; }
+      }
+      this.leader.geo.attributes.color.needsUpdate = true;
+      this.sighter.mesh.visible = !rig.indicator;
+      this.indicator.visible = !!rig.indicator;
+    }
+    if (rig.indicator) {
+      var ind = rig.indicatorNode();
+      var ir = rig.indicatorSpec.r;
+      this.indicator.position.set(ind.x, Math.max(ind.y, -0.05) + 0.012, rz);
+      this.indicator.scale.setScalar(ir);
+      this.indicator.rotation.z = Math.sin(this.t * 3.1) * 0.12 + clamp(ind.vx - g.river.surfaceSpeed(ind.x), -0.5, 0.5) * 0.5;
+    } else {
+      var sp = [];
+      for (var q = rig.sighterFrom; q <= rig.sighterTo; q++) sp.push({ x: nodes[q].x, y: nodes[q].y, z: rz });
+      this.sighter.set(sp);
+    }
 
     var p = rig.point();
     this.pointFly.position.set(p.x, p.y, rz);

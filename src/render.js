@@ -1179,6 +1179,33 @@
     var nodes = rig.nodes;
     var n = rig.config.nodes;
 
+    if (rig.indicator) {
+      // Floating fly line, greased butt, a bobber, then a whisper of tippet.
+      var lineEnd = Math.floor(rig.indicatorIndex * 0.72);
+      this._strokeRange(nodes, 0, lineEnd, 'rgba(178,190,96,0.95)', 2.6);
+      this._strokeRange(nodes, lineEnd, rig.indicatorIndex, 'rgba(214,206,178,0.75)', 1.4);
+      this._strokeRange(nodes, rig.indicatorIndex, n - 1, 'rgba(200,225,232,0.42)', 1.1);
+      var ind = rig.indicatorNode();
+      var ir = Math.max(3, rig.indicatorSpec.r * this.scale);
+      var ix = this.sx(ind.x), iy = this.sy(ind.y);
+      ctx.save();
+      ctx.shadowColor = '#ff8a2a'; ctx.shadowBlur = 10;
+      var ig = ctx.createRadialGradient(ix - ir * 0.3, iy - ir * 0.3, ir * 0.15, ix, iy, ir);
+      ig.addColorStop(0, '#ffd9a8'); ig.addColorStop(0.55, '#ff8a2a'); ig.addColorStop(1, '#c4561a');
+      ctx.fillStyle = ig;
+      ctx.beginPath(); ctx.arc(ix, iy, ir, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      var dd = rig.dropper();
+      if (dd) {
+        var hh = nodes[rig.dropperHost];
+        ctx.strokeStyle = 'rgba(200,225,232,0.42)'; ctx.lineWidth = 1.1;
+        ctx.beginPath(); ctx.moveTo(this.sx(hh.x), this.sy(hh.y)); ctx.lineTo(this.sx(dd.x), this.sy(dd.y)); ctx.stroke();
+        this._drawFly(dd, rig.config.dropperBead, '#c0d8c0');
+      }
+      this._drawFly(rig.point(), rig.config.pointBead, '#d9b24a');
+      return;
+    }
+
     // Butt / running line: dull, low-vis.
     this._strokeRange(nodes, 0, rig.sighterFrom, 'rgba(214,206,178,0.75)', 1.5);
     // Tippet: nearly invisible, just a hint.

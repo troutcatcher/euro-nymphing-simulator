@@ -153,6 +153,29 @@ Slack does not just cost you the hookup — it costs you ever knowing there was 
 fish. That is the entire lesson of the technique, and here it is a measurement
 rather than a claim.
 
+## Indicator nymphing
+
+The Method section switches the same river, fish and rod to a floating line, a
+strike indicator and a sunk nymph. Nothing about the trout changes; what changes
+is what you can see and what stands between you and the fish.
+
+- **The fly line floats** and the surface takes hold of it. A belly of line on
+  the water tows the indicator faster than the current beside it, and the nymph
+  under it skates. Mend with a flick of the rod tip to lay the line back
+  upstream, or hold more of it off the water. The free hand strips line in on its
+  own as the drift comes back to you, and the next cast shoots it out again.
+- **The indicator is the sighter now.** Size it to the rig: a small one shows a
+  soft take and a small fish can sink it; a large one floats a heavy bug and
+  drags more. Set the drop so the nymph hangs where the fish are — the depth
+  meter still reads off the nymph.
+- **A take stalls or dips the indicator** as the fish holds against the drifting
+  line. Lift at any stall, twitch or dip: by the time it goes under, the fish has
+  had the fly a while.
+- **The hookset has to pick the line up first.** The lift only reaches the fish
+  once the slack line on the water is gone, so the "line on the water" meter is
+  the one to watch between takes. A tight tippet under the indicator is what lets
+  the take show at all.
+
 ## Sound
 
 Every sound is synthesised in the Web Audio graph — there are no audio files, so

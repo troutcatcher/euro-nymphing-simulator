@@ -108,6 +108,26 @@
   Game.prototype.laneZ = function () { return EN.LANES[this.lane].z; };
 
   /**
+   * Under an indicator the free hand works the line: as the drift comes back
+   * down to you it strips line in so the belly on the water never grows past
+   * a mend's worth, and the next cast shoots it all back out.
+   */
+  Game.prototype._manageLine = function (dt) {
+    var rig = this.rig;
+    var ind = rig.indicatorNode();
+    var p = rig.point();
+    if (p.y >= 0 && p.vx < -0.3) {
+      // Flies flying upstream: line shoots through the guides.
+      rig.lineOut = Math.min(rig.total, rig.lineOut + dt * 9);
+      return;
+    }
+    if (ind.y > 0.04) return;
+    var chord = Math.hypot(ind.x - this.tip.x, ind.y - this.tip.y);
+    var want = clamp(chord + 0.55 + rig.config.indicatorDepth, rig.minLineOut(), rig.total);
+    if (want < rig.lineOut) rig.lineOut = Math.max(want, rig.lineOut - dt * 0.9);
+  };
+
+  /**
    * How far the tip can be held upstream in the current lane: the rod's
    * length less what it spends reaching across.
    */
@@ -174,6 +194,7 @@
 
   Game.prototype.setRig = function (patch) {
     this.rig.configure(patch);
+    this.river.dragTolerance = this.rig.indicator ? 1.7 : 1;
     this.resetDrift();
   };
 
@@ -185,7 +206,7 @@
   Game.prototype.resetDrift = function () {
     this.rig.anchor = null;
     this.rig.gathering = false;
-    this.rig.lineOut = this.rig.config.leaderLength;
+    this.rig.lineOut = this.rig.total;
     this.rig.layout(this.tip.x, this.tip.y, this.tip.x - 0.9, this.tip.y - 1.3);
     this.phase = 'fishing';
     this.phaseTime = 0;
@@ -217,7 +238,7 @@
 
   Game.prototype.cast = function () {
     if (this.phase === 'fighting' || this.phase === 'netting') return;
-    var reach = this.rig.config.leaderLength * 0.82;
+    var reach = this.rig.total * 0.82;
     var tx = clamp(this.tip.x - reach, EN.WORLD.xMin + 0.4, this.tip.x - 0.9);
     var ty = 0.22;
 
@@ -254,7 +275,7 @@
 
     var fish = this.school.active();
     if (fish && fish.state === 'taken') {
-      var chance = fish.hookChance(this.rig.contact, fish.holdTime);
+      var chance = fish.hookChance(this.rig.hookContact(), fish.holdTime);
       if (Math.random() < chance) {
         fish.hookUp();
         this._anchorTo(fish);
@@ -262,7 +283,7 @@
         // slack, so the fight starts with a bend in the rod.
         var fly = this.rig.anchor.node;
         var span = Math.hypot(fly.x - this.tip.x, fly.y - this.tip.y);
-        this.rig.lineOut = clamp(span - 0.25, 0.9, this.rig.config.leaderLength);
+        this.rig.lineOut = clamp(span - 0.25, this.rig.minLineOut() + 0.05, this.rig.total);
         this.phase = 'fighting';
         this.phaseTime = 0;
         this.driftActive = false;
@@ -278,10 +299,14 @@
         this.stats.missed++;
         this.say('Lifted into it and came up empty.', 'bad');
         var late = fish.holdTime / Math.max(0.1, fish.holdWindow);
-        if (late > 0.55 && this.rig.contact >= 0.8) {
-          this.coach('A shade slow. Set the moment the sighter does anything odd — do not wait to be sure.');
+        if (this.rig.indicator && this.rig.slack > 0.6) {
+          this.coach('Too much line on the water — the lift never reached the fish. Mend it straighter, or hold more line off the surface.');
+        } else if (late > 0.55 && this.rig.hookContact() >= 0.8) {
+          this.coach(this.rig.indicator ? 'A shade slow. Set the moment the indicator does anything odd — do not wait for it to go under.'
+                                        : 'A shade slow. Set the moment the sighter does anything odd — do not wait to be sure.');
         } else if (this.rig.contact < 0.8) {
-          this.coach('There was too much slack to drive the hook. Keep the sighter just taut.');
+          this.coach(this.rig.indicator ? 'The tippet was slack under the indicator, so the take barely showed. A touch more weight keeps it hanging straight.'
+                                        : 'There was too much slack to drive the hook. Keep the sighter just taut.');
         } else {
           this.coach('Close. A shorter, faster sweep downstream sticks more of those.');
         }
@@ -321,7 +346,7 @@
 
     this.rig.gathering = this.gathering && this.phase === 'fighting';
     if (this.phase === 'fighting') {
-      var min = 0.85, max = this.rig.config.leaderLength + 2.2;
+      var min = this.rig.minLineOut(), max = this.rig.total + 2.2;
       var load = this.hudState().tension;
       if (this.gathering) {
         this.rig.lineOut = Math.max(min, this.rig.lineOut - dt * 0.5);
@@ -331,6 +356,8 @@
         this.rig.lineOut = Math.min(max, this.rig.lineOut + dt * Math.max(0, load - 0.55) * 1.7);
       }
     }
+
+    if (this.rig.indicator && this.phase === 'fishing') this._manageLine(dt);
 
     var steps = Math.max(1, Math.min(8, Math.round(dt / PHYS_DT)));
     var sub = dt / steps;
@@ -431,7 +458,11 @@
           this.rig.anchor = null;
           if (this.rig.contact < 0.78) {
             this.say('A fish ate and spat it — you never saw it.', 'bad');
-            this.coach('Slack hides takes. Lead the sighter downstream so it stays just tight.');
+            this.coach(this.rig.indicator ? 'A slack tippet hides takes. Add weight or shorten the drop so the nymph hangs straight under the indicator.'
+                                          : 'Slack hides takes. Lead the sighter downstream so it stays just tight.');
+          } else if (this.rig.indicator) {
+            this.say('That was a fish. The indicator told you — you did not lift.', 'bad');
+            this.coach('Lift at any stall, twitch or dip. Being wrong costs you a drift; being slow costs you the fish.');
           } else if (this.river.preset.blind) {
             this.say('That was a fish. The sighter told you — you did not lift.', 'bad');
             this.coach('On water like this, set at anything odd. Being wrong costs you a drift; being slow costs you the fish.');
@@ -554,7 +585,7 @@
     this.driftActive = false;
     this.driftLocked = true;
     this.dryTime = 0;
-    this.rig.lineOut = this.rig.config.leaderLength;
+    this.rig.lineOut = this.rig.total;
 
     fish.state = 'landed';
     this.stats.landed++;
@@ -571,7 +602,7 @@
     this.driftActive = false;
     this.driftLocked = true;
     this.dryTime = 0;
-    this.rig.lineOut = this.rig.config.leaderLength;
+    this.rig.lineOut = this.rig.total;
 
     if (EN.audio) {
       EN.audio.setFight(null);
@@ -598,7 +629,9 @@
   Game.prototype._trackDrift = function (dt) {
     var p = this.rig.point();
     var wet = p.y < 0;
-    var past = p.x > this.grip.x - 0.35;
+    // Under an indicator the drift is over when the indicator swings past you.
+    var lead = this.rig.indicator ? this.rig.indicatorNode() : p;
+    var past = lead.x > this.grip.x - 0.35;
     this._trackCast(p, wet);
 
     if (!wet) {
@@ -621,7 +654,7 @@
     this.dryTime = 0;
     // Once the flies have swung past you they have to be put back upstream
     // before they count as a new drift.
-    if (this.driftLocked && !past && p.x < this.grip.x - 1.2) this.driftLocked = false;
+    if (this.driftLocked && !past && lead.x < this.grip.x - 1.2) this.driftLocked = false;
 
     if (!this.driftActive) {
       if (this.driftLocked || past) return;
@@ -655,10 +688,24 @@
 
     if (above < 0.28) d.zone += dt;
     if (dragErr < 0.14) d.dead += dt;
-    if (this.rig.contact > 0.82 && this.rig.contact < 0.998) d.contact += dt;
+    if (this.rig.indicator) {
+      if (this.rig.contact > 0.75 && this.rig.slack < 0.9) d.contact += dt;
+    } else if (this.rig.contact > 0.82 && this.rig.contact < 0.998) d.contact += dt;
 
     if (d.submerged > 1.2) {
-      if (above > 0.55) {
+      if (this.rig.indicator) {
+        var ind = this.rig.indicatorNode();
+        var indDrag = ind.vx - river.surfaceSpeed(ind.x);
+        if (above > 0.55) {
+          this.coach('The nymph is riding high. Set the indicator deeper, or go heavier so it gets down under it.');
+        } else if (this.rig.slack > 1.1) {
+          this.coach('Big belly of line on the water — mend it upstream with a flick, or keep more of it off the surface.');
+        } else if (Math.abs(indDrag) > 0.25) {
+          this.coach('The line is towing the indicator. Mend so it drifts at the speed of the bubbles beside it.');
+        } else if (Math.abs(p.vx) < 0.05 && above < 0.05) {
+          this.coach('Hung on the bottom. Shallower under the indicator, or a lighter bug.');
+        }
+      } else if (above > 0.55) {
         this.coach('You are riding high. Flick the flies further upstream, go heavier, or lengthen the leader.');
       } else if (this.rig.contact < 0.72) {
         this.coach('Big belly in the leader — raise the tip and lead the sighter with the drift.');
@@ -707,6 +754,9 @@
       totalDepth: river.depth(p.x),
       drag: p.y < 0 ? p.vx - u : 0,
       contact: this.rig.contact,
+      slack: this.rig.slack,
+      style: this.rig.indicator ? 'indicator' : 'euro',
+      indicator: this.rig.indicatorNode(),
       tension: fish && fish.state === 'hooked' ? (fish.tension || 0) : 0,
       stamina: fish && fish.state === 'hooked' ? fish.stamina : 0,
       lineOut: this.rig.lineOut,

@@ -15,7 +15,7 @@
     <div id="overlay">
       <div id="topbar">
         <div id="hud-mini">
-          <div class="mini"><span>Contact</span><div class="track"><div class="fill" id="m-contact"></div></div><em id="m-contact-v">—</em></div>
+          <div class="mini"><span id="m-contact-l">Contact</span><div class="track"><div class="fill" id="m-contact"></div></div><em id="m-contact-v">—</em></div>
           <div class="mini"><span>Off bed</span><div class="track"><div class="fill" id="m-depth"></div></div><em id="m-depth-v">—</em></div>
           <div class="mini"><span>Drag</span><div class="track"><div class="fill" id="m-drag"></div></div><em id="m-drag-v">—</em></div>
           <div class="mini" id="m-fight" hidden><span>Tippet</span><div class="track"><div class="fill" id="m-tension"></div></div><em id="m-tension-v">—</em></div>
@@ -32,17 +32,22 @@
 
   <aside id="panel">
     <h1>Euro Nymphing Simulator</h1>
-    <p class="sub">Tight-line contact, drift depth, and the take — read the sighter.</p>
+    <p class="sub">Drift depth, drag, and the take — read the sighter, or the indicator.</p>
 
     <section id="drift-section">
       <h2>Drift</h2>
 
       <div class="meter">
-        <div class="meter-head"><span>Contact</span><span id="contact-val">—</span></div>
+        <div class="meter-head"><span id="contact-label">Contact</span><span id="contact-val">—</span></div>
         <div class="track">
           <div class="band" id="contact-band"></div>
           <div class="fill" id="contact-fill"></div>
         </div>
+      </div>
+
+      <div class="meter" id="slack-meter" hidden>
+        <div class="meter-head"><span>Line on the water</span><span id="slack-val">—</span></div>
+        <div class="track"><div class="fill" id="slack-fill"></div></div>
       </div>
 
       <div class="meter">
@@ -73,6 +78,29 @@
     </section>
 
     <section>
+      <h2>Method</h2>
+      <label class="field">Technique
+        <select id="method">
+          <option value="euro">Tight line — sighter, no line on the water</option>
+          <option value="indicator">Indicator — floating line, bobber, sunk nymph</option>
+        </select>
+      </label>
+      <div id="indicator-fields" hidden>
+        <label class="field">Nymph under the indicator — <span id="ind-depth-val">1.2 m</span>
+          <input type="range" id="ind-depth" min="0.6" max="2.4" step="0.1" value="1.2">
+        </label>
+        <label class="field">Indicator
+          <select id="ind-size">
+            <option value="small">Small — sensitive, easy to sink</option>
+            <option value="medium" selected>Medium</option>
+            <option value="large">Large — floats a heavy rig, drags more</option>
+          </select>
+        </label>
+        <p class="sub" style="margin:6px 0 0">The fly line floats and the surface takes hold of it, so a belly of line tows the indicator. Mend with a flick of the rod, strip comes in on its own, and set at any stall, twitch or dip — by the time it goes under you are late.</p>
+      </div>
+    </section>
+
+    <section>
       <h2>Water</h2>
       <label class="field">Beat
         <select id="preset">
@@ -90,7 +118,7 @@
       <label class="field">Point fly bead — <span id="bead-val">3.5 mm</span>
         <input type="range" id="bead" min="2.5" max="4.5" step="1" value="3.5">
       </label>
-      <label class="field">Working leader, tip to point fly — <span id="leader-val">3.2 m</span>
+      <label class="field"><span id="leader-label">Working leader, tip to point fly</span> — <span id="leader-val">3.2 m</span>
         <input type="range" id="leader" min="2.4" max="4.6" step="0.2" value="3.2">
       </label>
       <label class="field">Tippet

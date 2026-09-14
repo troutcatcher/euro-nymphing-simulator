@@ -7,6 +7,14 @@
  *   - a tungsten bead is mass-dominated, so it keeps sinking through that belly;
  *   - the segment constraints only ever *pull*, never push, so slack is real
  *     slack and a take telegraphs up the leader only when you are in contact.
+ *
+ * The same rope fishes two ways. Tight-line (Euro): mono from the tip to the
+ * flies, nothing on the surface. Indicator: a floating fly line and greased
+ * leader lying on the water out to a buoyant indicator, and a sunk tippet and
+ * nymph hanging under it. Floating sections ride the surface current, which
+ * is what drags the indicator when the line bellies; the take shows as the
+ * indicator stalling or dipping; and the hookset first has to take the slack
+ * line off the water.
  */
 (function (EN) {
   'use strict';
@@ -20,6 +28,15 @@
   };
 
   function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  // Strike indicators: radius, how hard the surface current takes hold of
+  // them (relaxation rate), and how stiffly they float back up when pulled
+  // under. A big one drags more and is harder for a fish to sink.
+  var INDICATORS = {
+    small:  { r: 0.011, rate: 20, floatK: 45,  mass: 0.00025 },
+    medium: { r: 0.016, rate: 28, floatK: 70,  mass: 0.00060 },
+    large:  { r: 0.022, rate: 36, floatK: 105, mass: 0.00120 }
+  };
 
   /** Sink rate in still water for a given tungsten bead, m/s. */
   function beadSinkRate(mm) {
@@ -39,6 +56,9 @@
     this.airRate = opts.airRate;
     this.section = opts.section;
     this.pinned = !!opts.pinned;
+    this.floats = !!opts.floats;      // rides the surface rather than sinking
+    this.draft = opts.draft || 0;     // how deep it sits when floating, metres
+    this.floatK = opts.floatK || 0;   // stiffness of the return to the waterline
   }
 
   var DEFAULTS = {
@@ -51,7 +71,12 @@
     dropperAt: 0.76,     // fraction along the leader
     dropperTag: 0.15,    // tag length, metres
     tippet: 0.18,        // mm
-    useDropper: true
+    useDropper: true,
+    // Indicator style: leaderLength is then line and leader from tip to the
+    // indicator, and the nymph hangs indicatorDepth below it.
+    style: 'euro',       // 'euro' | 'indicator'
+    indicatorDepth: 1.2, // metres, indicator to point fly
+    indicatorSize: 'medium'
   };
 
   function Rig(config) {
@@ -65,19 +90,45 @@
     if (config) for (var j in config) c[j] = config[j];
 
     var n = c.nodes;
-    this.seg = c.leaderLength / (n - 1);
+    var indicator = c.style === 'indicator';
+    this.indicator = indicator;
+    // The whole rope, tip to point fly.
+    this.total = indicator ? c.leaderLength + c.indicatorDepth : c.leaderLength;
+    this.seg = this.total / (n - 1);
     this.nodes = [];
 
-    // Mono mass per node: ~0.55 g per metre of leader.
+    // Mono mass per node: ~0.55 g per metre of leader; fly line about 1.1 g/m.
     var monoMass = 0.00055 * this.seg;
+    var lineMass = 0.0011 * this.seg;
     var pointMass = 0.00008 * Math.pow(c.pointBead, 3) / 27; // ~0.3 g at 3.5 mm
     var dropperMass = 0.00008 * Math.pow(c.dropperBead, 3) / 27;
+    var ind = INDICATORS[c.indicatorSize] || INDICATORS.medium;
+    this.indicatorSpec = ind;
+    var indIndex = indicator ? Math.round((c.leaderLength / this.total) * (n - 1)) : -1;
+    this.indicatorIndex = indIndex;
 
     for (var i = 0; i < n; i++) {
       var f = i / (n - 1);
       var section = 'butt';
       var waterRate = 95, airRate = 1.1;
-      if (f >= c.sighterFrom && f <= c.sighterTo) {
+      var opts = { buoy: BUOY.mono, mass: monoMass };
+      var isPoint = (i === n - 1);
+      if (indicator) {
+        if (i < indIndex * 0.72) {
+          // Floating fly line: fat, and the surface takes hold of it hard.
+          section = 'line'; waterRate = 70; airRate = 2.0;
+          opts = { buoy: 0, mass: lineMass, floats: true, draft: 0.0015, floatK: 90 };
+        } else if (i < indIndex) {
+          // Greased leader butt, floating but lighter on the water.
+          section = 'butt'; waterRate = 35; airRate = 1.1;
+          opts = { buoy: 0, mass: monoMass, floats: true, draft: 0.002, floatK: 60 };
+        } else if (i === indIndex) {
+          section = 'indicator'; waterRate = ind.rate; airRate = 1.6;
+          opts = { buoy: 0, mass: ind.mass, floats: true, draft: ind.r * 0.55, floatK: ind.floatK };
+        } else {
+          section = 'tippet'; waterRate = 55 * (c.tippet / 0.14); airRate = 0.8;
+        }
+      } else if (f >= c.sighterFrom && f <= c.sighterTo) {
         section = 'sighter';
         waterRate = 115; airRate = 1.5;
       } else if (f > c.sighterTo) {
@@ -87,23 +138,33 @@
         waterRate = 55 * (c.tippet / 0.14);
         airRate = 0.8;
       }
-      var isPoint = (i === n - 1);
       this.nodes.push(new Node(0, 0, {
-        invMass: i === 0 ? 0 : 1 / (isPoint ? pointMass : monoMass),
-        buoy: isPoint ? BUOY.fly : BUOY.mono,
+        invMass: i === 0 ? 0 : 1 / (isPoint ? pointMass : opts.mass),
+        buoy: isPoint ? BUOY.fly : opts.buoy,
         waterRate: isPoint ? G * BUOY.fly / beadSinkRate(c.pointBead) : waterRate,
         airRate: isPoint ? 0.45 : airRate,
         section: isPoint ? 'point' : section,
-        pinned: i === 0
+        pinned: i === 0,
+        floats: !isPoint && opts.floats,
+        draft: opts.draft,
+        floatK: opts.floatK
       }));
     }
 
     this.pointIndex = n - 1;
-    this.sighterFrom = Math.round(c.sighterFrom * (n - 1));
-    this.sighterTo = Math.round(c.sighterTo * (n - 1));
+    if (indicator) {
+      // The indicator is the sighter now: it is the thing you read.
+      this.sighterFrom = this.sighterTo = indIndex;
+    } else {
+      this.sighterFrom = Math.round(c.sighterFrom * (n - 1));
+      this.sighterTo = Math.round(c.sighterTo * (n - 1));
+    }
 
-    // The dropper hangs off a tag part way down and rides higher in the column.
-    this.dropperHost = Math.round(c.dropperAt * (n - 1));
+    // The dropper hangs off a tag part way down and rides higher in the column
+    // — under an indicator, part way down the tippet.
+    this.dropperHost = indicator ? indIndex + Math.round((n - 1 - indIndex) * 0.55)
+                                 : Math.round(c.dropperAt * (n - 1));
+    this.dropperFrac = this.dropperHost / (n - 1);
     this.dropperIndex = -1;
     if (c.useDropper) {
       this.dropperIndex = this.nodes.length;
@@ -118,14 +179,18 @@
     }
 
     this.contact = 0;
+    this.slack = 0;        // indicator style: line bellied on the water, metres
     this.tension = 0;
     this.bedHits = 0;      // beads knocking the stones since the last read
     this.anchor = null;      // set while a fish has the fly
     this.snagged = false;
-    this.lineOut = c.leaderLength; // shortened by hand while playing a fish
+    this.lineOut = this.total; // shortened by hand while playing a fish
   };
 
   Rig.prototype.point = function () { return this.nodes[this.pointIndex]; };
+  Rig.prototype.indicatorNode = function () {
+    return this.indicatorIndex >= 0 ? this.nodes[this.indicatorIndex] : null;
+  };
   Rig.prototype.dropper = function () {
     return this.dropperIndex >= 0 ? this.nodes[this.dropperIndex] : null;
   };
@@ -149,7 +214,7 @@
     }
     this.anchor = null;
     this.snagged = false;
-    this.lineOut = this.config.leaderLength;
+    this.lineOut = this.total;
   };
 
   Rig.prototype.setPointVelocity = function (vx, vy) {
@@ -175,7 +240,16 @@
       if (nd.pinned) continue;
 
       var submerged = nd.y < 0;
-      if (submerged) {
+      if (nd.floats && nd.y < 0.04) {
+        // On the surface: carried by the surface current, held at its
+        // waterline by buoyancy, and pushed back up if something pulls it under.
+        var us = river.surfaceSpeed(nd.x);
+        var st = river.turbulenceAt(nd.x, -0.01, river.time);
+        var kf = 1 - Math.exp(-nd.waterRate * dt);
+        nd.vx += ((us + st.x * 0.6) - nd.vx) * kf;
+        var y0 = -nd.draft;
+        nd.vy += (-(nd.y - y0) * nd.floatK - nd.vy * 9) * dt + st.y * 0.4 * dt;
+      } else if (submerged) {
         var u = river.speedAt(nd.x, nd.y);
         var turb = river.turbulenceAt(nd.x, nd.y, river.time);
         // Exponential relaxation toward the water: stable at any drag strength,
@@ -219,13 +293,15 @@
 
   Rig.prototype._solveSegments = function () {
     var n = this.config.nodes;
-    var rest = this.seg;
-    // Shorten the working length when the angler gathers line during a fight.
-    var scale = this.lineOut / this.config.leaderLength;
-    rest *= scale;
+    // Shorten the working length when the angler gathers or strips line. Under
+    // an indicator only the line above it shortens; the drop to the nymph is
+    // the depth you set and stays put.
+    var scale = this.lineScale();
+    var restLine = this.seg * scale, restDrop = this.indicator ? this.seg : restLine;
 
     for (var i = 0; i < n - 1; i++) {
       var a = this.nodes[i], b = this.nodes[i + 1];
+      var rest = i < this.indicatorIndex ? restLine : restDrop;
       var dx = b.x - a.x, dy = b.y - a.y;
       var d = Math.hypot(dx, dy);
       if (d < 1e-9) continue;
@@ -298,10 +374,28 @@
     }
   };
 
+  /** The shortest the rope can be gathered to: the drop plus a rod's tip of line. */
+  Rig.prototype.minLineOut = function () {
+    return this.indicator ? this.config.indicatorDepth + 0.5 : 0.85;
+  };
+
+  /** Fraction of the line (above the indicator, or the whole leader) in play. */
+  Rig.prototype.lineScale = function () {
+    if (!this.indicator) return this.lineOut / this.total;
+    return clamp((this.lineOut - this.config.indicatorDepth) / this.config.leaderLength, 0.08, 1);
+  };
+
   /** Leader in play out to a given fly — shorter if it is the dropper. */
   Rig.prototype.lengthTo = function (node) {
+    if (this.indicator) {
+      var line = this.lineOut - this.config.indicatorDepth;
+      if (node && node.section === 'dropper') {
+        return line + (this.dropperHost - this.indicatorIndex) * this.seg + this.config.dropperTag;
+      }
+      return this.lineOut;
+    }
     if (node && node.section === 'dropper') {
-      return this.lineOut * this.config.dropperAt + this.config.dropperTag;
+      return this.lineOut * this.dropperFrac + this.config.dropperTag;
     }
     return this.lineOut;
   };
@@ -310,7 +404,25 @@
     var p = (this.anchor && this.anchor.node) || this.point();
     var span = this.lengthTo(p);
     var chord = Math.hypot(p.x - tip.x, p.y - tip.y);
-    this.contact = clamp(chord / span, 0, 1);
+    if (this.indicator) {
+      // Contact is the tippet under the indicator: only a fairly straight
+      // tippet lets a take move the indicator. Slack is the line on the water
+      // between rod tip and indicator that a hookset has to pick up first.
+      var ind = this.indicatorNode();
+      var down = Math.hypot(p.x - ind.x, p.y - ind.y);
+      var downSpan = p.section === 'dropper' ? (this.dropperHost - this.indicatorIndex) * this.seg + this.config.dropperTag
+                                             : (this.pointIndex - this.indicatorIndex) * this.seg;
+      this.contact = clamp(down / Math.max(0.05, downSpan), 0, 1);
+      var rope = 0;
+      for (var i = 0; i < this.indicatorIndex; i++) {
+        var a = this.nodes[i], b = this.nodes[i + 1];
+        rope += Math.hypot(b.x - a.x, b.y - a.y);
+      }
+      this.slack = Math.max(0, rope - Math.hypot(ind.x - tip.x, ind.y - tip.y));
+    } else {
+      this.contact = clamp(chord / span, 0, 1);
+      this.slack = 0;
+    }
 
     // How hard the leader is loaded, normalised so 1.0 is roughly a straight,
     // fully weighted rig. Used for the sighter read and for the fight.
@@ -318,8 +430,23 @@
     this.tension = Math.max(0, stretch) * 40 + Math.max(0, this.contact - 0.9) * 2.2;
   };
 
+  /**
+   * What a hookset has to work with: tight-line, the contact itself; under an
+   * indicator, the tippet's contact discounted by the slack line the lift
+   * must pick up off the water before it reaches the fish.
+   */
+  Rig.prototype.hookContact = function () {
+    if (!this.indicator) return this.contact;
+    return this.contact * clamp(1 - Math.max(0, this.slack - 0.25) / 1.3, 0.15, 1);
+  };
+
   /** RMS speed of the sighter relative to the water — how much it is "talking". */
   Rig.prototype.sighterSignal = function (river) {
+    if (this.indicator) {
+      var ind = this.indicatorNode();
+      var us = river.surfaceSpeed(ind.x);
+      return Math.hypot(ind.vx - us, ind.vy * 2.0);
+    }
     var sum = 0, count = 0;
     for (var i = this.sighterFrom; i <= this.sighterTo; i++) {
       var nd = this.nodes[i];
@@ -331,6 +458,7 @@
   };
 
   EN.Rig = Rig;
+  EN.INDICATORS = INDICATORS;
   EN.beadSinkRate = beadSinkRate;
   EN.clamp = clamp;
 })(window.EN = window.EN || {});
