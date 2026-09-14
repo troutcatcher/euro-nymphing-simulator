@@ -445,6 +445,10 @@
     this.game = game;
     this.t = 0;
     this.rigZ = 0;               // where the rig plane is drawn across the river
+    // Indicator style: the rod's stroke plane bears on the line rather than
+    // running along the bank. 0 is straight upstream, pi/2 straight across.
+    this.rodAz = Math.PI / 4;
+    this._dx = -Math.cos(this.rodAz); this._dz = -Math.sin(this.rodAz);
     this._presetKey = null;
     this._view = 'bank';
 
@@ -501,8 +505,8 @@
       // Over the downstream shoulder, high, looking up and across: the line
       // lies across the lanes in front of you and the indicator comes back
       // down towards you, which is where you watch it drag.
-      this.camera.position.set(this.game.grip.x + 1.5, 3.1, 2.6);
-      focus.set(3.0, -0.1, -2.4);
+      this.camera.position.set(this.game.grip.x + 0.9, 2.9, 4.0);
+      focus.set(this.game.grip.x - 2.8, -0.25, -2.4);
     } else if (this._view === 'side') {
       this.camera.position.set(5.0, 2.25, 7.6);
       focus.set(4.8, 0.05, 0);
@@ -1258,29 +1262,31 @@
       m.castShadow = true;
       return m;
     }
+    var body = this.body = new T.Group();
+    grp.add(body);
     var footY = g.river.bedY(g.grip.x) + 0.02;
     var hipY = 0.42;
     this.legL = capsule(0.075, hipY - footY - 0.1, wader);
     this.legR = capsule(0.075, hipY - footY - 0.1, wader);
     this.legL.position.set(g.grip.x + 0.28, (footY + hipY) / 2, 0.42);
     this.legR.position.set(g.grip.x + 0.42, (footY + hipY) / 2, 0.20);
-    grp.add(this.legL); grp.add(this.legR);
+    body.add(this.legL); body.add(this.legR);
 
     this.torso = capsule(0.14, 0.60, dark);
     this.torso.position.set(g.grip.x + 0.34, 0.95, 0.31);
     this.torso.rotation.z = -0.08;
-    grp.add(this.torso);
+    body.add(this.torso);
 
     this.head = new T.Mesh(new T.SphereGeometry(0.095, 14, 12), skin);
     this.head.position.set(g.grip.x + 0.33, 1.47, 0.31);
     this.head.castShadow = true;
-    grp.add(this.head);
+    body.add(this.head);
     this.cap = new T.Mesh(new T.CylinderGeometry(0.105, 0.105, 0.06, 14), dark);
     this.cap.position.set(g.grip.x + 0.33, 1.53, 0.31);
-    grp.add(this.cap);
+    body.add(this.cap);
     this.peak = new T.Mesh(new T.BoxGeometry(0.16, 0.012, 0.11), dark);
     this.peak.position.set(g.grip.x + 0.21, 1.505, 0.31);
-    grp.add(this.peak);
+    body.add(this.peak);
 
     this.armRod = new DynTube(3, 6, function (s) { return 0.038 - s * 0.008; }, dark);
     this.armNet = new DynTube(2, 6, function () { return 0.032; }, dark);
@@ -1431,11 +1437,36 @@
     // Swing the rig across to the lane being fished; bring it to hand to net.
     var zTarget = this.game.phase === 'netting' ? 0.30 : this.game.laneZ();
     this.rigZ += (zTarget - this.rigZ) * Math.min(1, dt * 4.5);
+    if (this.game.rig.indicator) {
+      // The rod points at the line: up and across on the cast, squaring up
+      // across as the indicator comes down past you.
+      var ind = this.game.rig.indicatorNode();
+      var u = this.game.grip.x - ind.x, a = 0.02 - this.rigZ;
+      // The stroke itself goes up and across at 45 degrees; once the
+      // indicator is on the water the rod follows it down the drift.
+      var azT = ind.y > 0.04 ? Math.PI / 4 : clamp(Math.atan2(Math.max(a, 0.05), u), 0.15, 2.3);
+      if (this.game.phase === 'netting') azT = 1.4;
+      this.rodAz += (azT - this.rodAz) * Math.min(1, dt * 3);
+      this._dx = -Math.cos(this.rodAz); this._dz = -Math.sin(this.rodAz);
+    }
     this.waterMat.uniforms.uTime.value = this.t;
     this.skyMat.uniforms.uTime.value = this.t;
     this.veg.uTime.value = this.t;
     this.bedUniforms.uTime.value = this.t;
     this._updateParticles(dt);
+  };
+
+  /**
+   * Indicator style: map a point of the rod's 2D world (x along the river,
+   * y up) into the stroke plane that bears on the line. The grip is the
+   * origin; distance upstream of it becomes distance along the bearing.
+   */
+  Renderer.prototype._toStroke = function (x, y, out) {
+    var u = this.game.grip.x - x;
+    out.x = this.game.grip.x + this._dx * u;
+    out.y = y;
+    out.z = 0.02 + this._dz * u;
+    return out;
   };
 
   Renderer.prototype._syncTackle = function () {
@@ -1468,20 +1499,26 @@
     // With a fly line the tip stays at your side and the line crosses the
     // river; tight-line, the tip reaches into the lane itself.
     var tz = rig.indicator ? g.river.tipZ : rz;
+    var indi = !!rig.indicator;
     for (var i = 0; i < 18; i++) {
       var s = i / 17;
       var f = Math.pow(s, 1.5) * Math.sqrt(1 - s) / 0.325;   // peaks around s = 0.75
       var off = belly * f * sgn;
-      pts.push({ x: gx + cxd * s + px * off,
-                 y: gy + cyd * s + py * off,
-                 z: hz + (tz - hz) * s });
+      var pt = { x: gx + cxd * s + px * off, y: gy + cyd * s + py * off, z: hz + (tz - hz) * s };
+      if (indi) this._toStroke(pt.x, pt.y, pt);
+      pts.push(pt);
     }
     this.rod.set(pts);
     var ux = tx - gx, uy = ty - gy, ul = Math.hypot(ux, uy) || 1;
     ux /= ul; uy /= ul;
-    this.cork.position.set(gx + ux * 0.02, gy + uy * 0.02, hz);
-    this.cork.rotation.z = Math.atan2(uy, ux) - Math.PI / 2;
-    this.reel.position.set(gx - ux * 0.20 - uy * 0.0, gy - uy * 0.20 - 0.06, hz);
+    var corkP = { x: gx + ux * 0.02, y: gy + uy * 0.02, z: hz };
+    var reelP = { x: gx - ux * 0.20, y: gy - uy * 0.20 - 0.06, z: hz };
+    if (indi) { this._toStroke(corkP.x, corkP.y, corkP); this._toStroke(reelP.x, reelP.y, reelP); }
+    this.cork.position.set(corkP.x, corkP.y, corkP.z);
+    this.cork.rotation.set(0, 0, Math.atan2(uy, ux) - Math.PI / 2);
+    if (indi) this.cork.rotation.y = -this.rodAz;
+    this.reel.position.set(reelP.x, reelP.y, reelP.z);
+    var tip3 = indi ? this._toStroke(tx, ty, { x: 0, y: 0, z: 0 }) : { x: tx, y: ty, z: tz };
 
     // Leader and sighter straight off the rig nodes.
     var nodes = rig.nodes, n = this.leaderN;
@@ -1490,8 +1527,11 @@
       var ny = nodes[k].y;
       // Floating line sits a hair under the mean surface; draw it just above
       // the wave crests so the water does not hide it between them.
-      if (nodes[k].floats && ny > -0.06 && ny < 0.04) ny = 0.016;
-      lp.push({ x: nodes[k].x, y: ny, z: tz + (rz - tz) * nodes[k].zf });
+      if (nodes[k].floats && ny > -0.06 && ny < 0.04) ny = 0.03;
+      var zf = nodes[k].zf;
+      // Near the tip the line starts where the rod actually is, in the stroke
+      // plane; by the indicator it is in the lane.
+      lp.push({ x: nodes[k].x + (1 - zf) * (tip3.x - tx), y: ny, z: tip3.z + (rz - tip3.z) * zf });
     }
     this.leader.set(lp);
     var styleKey = (rig.indicator ? 'i' : 'e') + rig.indicatorIndex;
@@ -1564,10 +1604,23 @@
     this.head.position.x = g.grip.x + 0.33 + lean * 0.45;
     this.cap.position.x = this.head.position.x;
     this.peak.position.x = this.head.position.x - 0.12;
-    // Elbow hangs below the shoulder-to-hand line so the arm bends, not swings.
     var hx = hand.x + 0.02, hy = hand.y + 0.02;
-    var elbow = { x: (shoulder.x + hx) / 2 + 0.10, y: (shoulder.y + hy) / 2 - 0.14, z: 0.20 };
-    this.armRod.set([shoulder, elbow, { x: hx, y: hy, z: 0.02 }]);
+    var handP = { x: hx, y: hy, z: 0.02 };
+    var P = { x: g.grip.x + 0.34, z: 0.31 };            // where the body turns about
+    var psi = 0;
+    if (g.rig.indicator) {
+      // Face the far bank, turned a little towards wherever the rod points.
+      psi = -(Math.PI / 4 + this.rodAz * 0.5);
+      this._toStroke(hx, hy, handP);
+      var c = Math.cos(psi), sn = Math.sin(psi);
+      var sx = shoulder.x - P.x, sz = shoulder.z - P.z;
+      shoulder = { x: P.x + sx * c + sz * sn, y: shoulder.y, z: P.z - sx * sn + sz * c };
+    }
+    this.body.rotation.y = psi;
+    this.body.position.set(P.x - (P.x * Math.cos(psi) + P.z * Math.sin(psi)), 0, P.z - (-P.x * Math.sin(psi) + P.z * Math.cos(psi)));
+    // Elbow hangs below the shoulder-to-hand line so the arm bends, not swings.
+    var elbow = { x: (shoulder.x + handP.x) / 2 + 0.06, y: (shoulder.y + handP.y) / 2 - 0.14, z: (shoulder.z + handP.z) / 2 };
+    this.armRod.set([shoulder, elbow, handP]);
 
     if (g.phase === 'netting') {
       var m = g.netMouth(g.netProgress);
@@ -1578,8 +1631,9 @@
       this.armNet.set([{ x: g.grip.x + 0.30, y: 1.22, z: 0.30 }, { x: m.x + 0.52, y: m.y + 0.02, z: this.rigZ + 0.05 }]);
       this.armNet.mesh.visible = true;
     } else {
-      this.net.position.set(g.grip.x + 0.55, 0.98, 0.34);
-      this.net.rotation.set(0.9, 0.3, -0.5);
+      var c2 = Math.cos(psi), s2 = Math.sin(psi);
+      this.net.position.set(P.x + 0.21 * c2 + 0.03 * s2, 0.98, P.z - 0.21 * s2 + 0.03 * c2);
+      this.net.rotation.set(0.9, 0.3 + psi, -0.5);
       this.bag.scale.y = 1;
       this.armNet.mesh.visible = false;
     }
@@ -1690,8 +1744,20 @@
     var rect = this.canvas.getBoundingClientRect();
     var ndc = new T.Vector2((px / rect.width) * 2 - 1, -(py / rect.height) * 2 + 1);
     if (!this._ray) { this._ray = new T.Raycaster(); this._plane = new T.Plane(new T.Vector3(0, 0, 1), 0); this._hit = new T.Vector3(); }
-    this._plane.constant = -(this.game.rig.indicator ? this.game.river.tipZ : this.game.laneZ());
     this._ray.setFromCamera(ndc, this.camera);
+    if (this.game.rig.indicator) {
+      // The stroke plane: vertical, through the grip, along the rod's bearing.
+      var gx0 = this.game.grip.x, gz0 = 0.02;
+      this._plane.normal.set(-this._dz, 0, this._dx).normalize();
+      this._plane.constant = -(this._plane.normal.x * gx0 + this._plane.normal.z * gz0);
+      if (this._ray.ray.intersectPlane(this._plane, this._hit)) {
+        var u = (this._hit.x - gx0) * this._dx + (this._hit.z - gz0) * this._dz;
+        return { x: gx0 - u, y: this._hit.y };
+      }
+      return { x: this.game.tipTarget.x, y: this.game.tipTarget.y };
+    }
+    this._plane.normal.set(0, 0, 1);
+    this._plane.constant = -this.game.laneZ();
     if (this._ray.ray.intersectPlane(this._plane, this._hit)) return { x: this._hit.x, y: this._hit.y };
     return { x: this.game.tipTarget.x, y: this.game.tipTarget.y };
   };

@@ -168,10 +168,11 @@ is what you can see and what stands between you and the fish.
   a couple of seconds of clean drift before the belly forms again, so you mend and
   mend again. The free hand strips line in on its own as the drift comes back to
   you, and the next cast shoots it out again.
-- **The view moves** with the method: over your downstream shoulder, high, looking
-  up and across the lanes, with the indicator coming back down towards you. Casts
-  carry twice as far across as the tight-line lanes, since the fly line does the
-  reaching and the rod tip stays at your side.
+- **You face the far bank.** The view is from behind your shoulder looking across
+  the river, the cast goes up and across at about 45 degrees, and the rod then
+  swings round to follow the indicator down the drift. Casts carry twice as far
+  across as the tight-line lanes, since the fly line does the reaching and the
+  rod tip stays at your side.
 - **The indicator is the sighter now.** Size it to the rig: a small one shows a
   soft take and a small fish can sink it; a large one floats a heavy bug and
   drags more. Set the drop so the nymph hangs where the fish are — the depth
