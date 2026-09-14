@@ -495,7 +495,15 @@
   Renderer.prototype._placeCamera = function () {
     var focus = this._focus;
     focus.set(4.3, 0.25, 0);
-    if (this._view === 'side') {
+    var ind = this.game.rig && this.game.rig.indicator;
+    this._camStyle = !!ind;
+    if (ind) {
+      // Over the downstream shoulder, high, looking up and across: the line
+      // lies across the lanes in front of you and the indicator comes back
+      // down towards you, which is where you watch it drag.
+      this.camera.position.set(this.game.grip.x + 1.5, 3.1, 2.6);
+      focus.set(3.0, -0.1, -2.4);
+    } else if (this._view === 'side') {
       this.camera.position.set(5.0, 2.25, 7.6);
       focus.set(4.8, 0.05, 0);
     } else {
@@ -935,7 +943,7 @@
       for (var L = 0; L < lies.length; L++) {
         var lie = EN.laneLie(lies[L], LN);
         var ring = new T.Mesh(ringGeo, ringMat);
-        ring.position.set(lie.x, river.profileY(lie.x) + lane.depth + 0.03, lane.z);
+        ring.position.set(lie.x, river.profileY(lie.x) + lane.depth + 0.03, river.laneZ(LN));
         ring.scale.setScalar(1 + lie.quality * 0.4);
         ring.visible = false;
         this.beat.add(ring);
@@ -945,6 +953,7 @@
 
     this.scene.add(this.beat);
     this._presetKey = preset.key;
+    this._spreadKey = river.laneSpread;
 
     // Water and sky take on the beat too.
     var w = preset.water || { surface: '#2c5a63', mid: '#1d4048', deep: '#12292f' };
@@ -1061,7 +1070,7 @@
     this.leader = new DynTube(n, 6, function (s) {
       var r = self.game.rig;
       var nd = r.nodes[Math.round(s * (r.config.nodes - 1))];
-      if (r.indicator) return nd.section === 'line' ? 0.0012 : (nd.section === 'butt' ? 0.0005 : 0.00032);
+      if (r.indicator) return nd.section === 'line' ? 0.0030 : (nd.section === 'butt' ? 0.0009 : 0.0004);
       return s < 0.5 ? 0.0032 : 0.0018;
     }, new T.MeshStandardMaterial({ color: hex('#ffffff'), vertexColors: true, roughness: 0.45, metalness: 0.05 }));
     this.leaderColors = new Float32Array(n * 6 * 3);
@@ -1072,7 +1081,7 @@
     // A strike indicator: an orange foam ball with a pale top.
     this.indicator = new T.Group();
     var indBall = new T.Mesh(new T.SphereGeometry(1, 18, 14),
-      new T.MeshStandardMaterial({ color: hex('#ff7a1a'), roughness: 0.55, emissive: hex('#ff5a00'), emissiveIntensity: 0.18 }));
+      new T.MeshStandardMaterial({ color: hex('#ff7a1a'), roughness: 0.5, emissive: hex('#ff4d00'), emissiveIntensity: 0.45 }));
     var indCap = new T.Mesh(new T.SphereGeometry(0.72, 14, 10),
       new T.MeshStandardMaterial({ color: hex('#fff2dc'), roughness: 0.6 }));
     indCap.position.y = 0.45;
@@ -1417,7 +1426,8 @@
 
   Renderer.prototype.update = function (dt) {
     this.t += dt;
-    if (this._presetKey !== this.game.river.preset.key) this._buildBeat();
+    if (this._presetKey !== this.game.river.preset.key || this._spreadKey !== this.game.river.laneSpread) this._buildBeat();
+    if (this._camStyle !== !!this.game.rig.indicator) this._placeCamera();
     // Swing the rig across to the lane being fished; bring it to hand to net.
     var zTarget = this.game.phase === 'netting' ? 0.30 : this.game.laneZ();
     this.rigZ += (zTarget - this.rigZ) * Math.min(1, dt * 4.5);
@@ -1455,13 +1465,16 @@
     var belly = 0.03 + rig.contact * 0.05 + load * 0.48;
     var pts = [];
     var rz = this.rigZ, hz = 0.02;
+    // With a fly line the tip stays at your side and the line crosses the
+    // river; tight-line, the tip reaches into the lane itself.
+    var tz = rig.indicator ? g.river.tipZ : rz;
     for (var i = 0; i < 18; i++) {
       var s = i / 17;
       var f = Math.pow(s, 1.5) * Math.sqrt(1 - s) / 0.325;   // peaks around s = 0.75
       var off = belly * f * sgn;
       pts.push({ x: gx + cxd * s + px * off,
                  y: gy + cyd * s + py * off,
-                 z: hz + (rz - hz) * s });
+                 z: hz + (tz - hz) * s });
     }
     this.rod.set(pts);
     var ux = tx - gx, uy = ty - gy, ul = Math.hypot(ux, uy) || 1;
@@ -1477,14 +1490,14 @@
       var ny = nodes[k].y;
       // Floating line sits a hair under the mean surface; draw it just above
       // the wave crests so the water does not hide it between them.
-      if (nodes[k].floats && ny > -0.06 && ny < 0.04) ny = 0.014;
-      lp.push({ x: nodes[k].x, y: ny, z: rz });
+      if (nodes[k].floats && ny > -0.06 && ny < 0.04) ny = 0.016;
+      lp.push({ x: nodes[k].x, y: ny, z: tz + (rz - tz) * nodes[k].zf });
     }
     this.leader.set(lp);
     var styleKey = (rig.indicator ? 'i' : 'e') + rig.indicatorIndex;
     if (styleKey !== this._leaderStyleKey) {
       this._leaderStyleKey = styleKey;
-      var lc = this.leaderColors, cLine = hex('#a9b95c'), cMono = hex('#d8d2c2'), cTip = hex('#dbe6ea');
+      var lc = this.leaderColors, cLine = hex('#e2ff4a'), cMono = hex('#f0e6c8'), cTip = hex('#dbe6ea');
       for (var ci = 0; ci < n; ci++) {
         var sec = nodes[ci].section;
         var col = rig.indicator ? (sec === 'line' ? cLine : (sec === 'butt' ? cMono : cTip)) : cMono;
@@ -1498,7 +1511,7 @@
       var ind = rig.indicatorNode();
       var ir = rig.indicatorSpec.r;
       this.indicator.position.set(ind.x, Math.max(ind.y, -0.05) + 0.012, rz);
-      this.indicator.scale.setScalar(ir);
+      this.indicator.scale.setScalar(ir * 3.0);   // drawn well up in size so it reads from the bank
       this.indicator.rotation.z = Math.sin(this.t * 3.1) * 0.12 + clamp(ind.vx - g.river.surfaceSpeed(ind.x), -0.5, 0.5) * 0.5;
     } else {
       var sp = [];
@@ -1677,7 +1690,7 @@
     var rect = this.canvas.getBoundingClientRect();
     var ndc = new T.Vector2((px / rect.width) * 2 - 1, -(py / rect.height) * 2 + 1);
     if (!this._ray) { this._ray = new T.Raycaster(); this._plane = new T.Plane(new T.Vector3(0, 0, 1), 0); this._hit = new T.Vector3(); }
-    this._plane.constant = -this.game.laneZ();
+    this._plane.constant = -(this.game.rig.indicator ? this.game.river.tipZ : this.game.laneZ());
     this._ray.setFromCamera(ndc, this.camera);
     if (this._ray.ray.intersectPlane(this._plane, this._hit)) return { x: this._hit.x, y: this._hit.y };
     return { x: this.game.tipTarget.x, y: this.game.tipTarget.y };

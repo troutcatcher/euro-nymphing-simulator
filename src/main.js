@@ -328,7 +328,7 @@
   var PHASE_TEXT = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>sweep the rod up</strong> to set',
-    driftingInd: 'Drifting — watch the indicator, <strong>sweep the rod up</strong> at any stall or dip',
+    driftingInd: 'Drifting — <strong>mend</strong> when the line tows the indicator, <strong>sweep up</strong> at a stall or dip',
     fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it',
     netting: 'Netting it…'
   };
@@ -336,7 +336,7 @@
   var PHASE_TEXT_TOUCH = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>flick up</strong> to set',
-    driftingInd: 'Drifting — watch the indicator, <strong>flick up</strong> at any stall or dip',
+    driftingInd: 'Drifting — <strong>flick</strong> to mend when the line tows the indicator, <strong>flick up</strong> at a stall or dip',
     fighting: 'Fish on — <strong>press and hold</strong> to gather line, let go to give it',
     netting: 'Netting it…'
   };

@@ -105,7 +105,7 @@
     return out;
   };
 
-  Game.prototype.laneZ = function () { return EN.LANES[this.lane].z; };
+  Game.prototype.laneZ = function () { return this.river.laneZ(); };
 
   /**
    * Under an indicator the free hand works the line: as the drift comes back
@@ -132,6 +132,9 @@
    * length less what it spends reaching across.
    */
   Game.prototype.reach = function () {
+    // With a fly line the rod stays at your side and the line does the
+    // reaching, so the tip keeps its full sweep whatever the lane.
+    if (this.rig.indicator) return this.rodLength;
     var dz = EN.LANES[this.lane].z - 0.28;
     return Math.sqrt(Math.max(1.6, this.rodLength * this.rodLength - dz * dz));
   };
@@ -194,7 +197,15 @@
 
   Game.prototype.setRig = function (patch) {
     this.rig.configure(patch);
-    this.river.dragTolerance = this.rig.indicator ? 1.7 : 1;
+    var ind = this.rig.indicator;
+    this.river.dragTolerance = ind ? 1.7 : 1;
+    this.river.laneSpread = ind ? 2.0 : 1;
+    // The lanes moved: put every school back on its own lane.
+    for (var s = 0; s < this.schools.length; s++) {
+      var school = this.schools[s];
+      school.z = this.river.laneZ(school.lane);
+      for (var f = 0; f < school.fish.length; f++) school.fish[f].z = school.z;
+    }
     this.resetDrift();
   };
 
@@ -698,10 +709,12 @@
         var indDrag = ind.vx - river.surfaceSpeed(ind.x);
         if (above > 0.55) {
           this.coach('The nymph is riding high. Set the indicator deeper, or go heavier so it gets down under it.');
+        } else if (indDrag > 0.2) {
+          this.coach('Faster water between you and the indicator is bellying the line downstream and towing it. Flick the line back upstream — an upstream mend.');
+        } else if (indDrag < -0.2) {
+          this.coach('The slow water you are standing in is holding the line back and the indicator with it. Throw the line downstream of it — a downstream mend — or feed line.');
         } else if (this.rig.slack > 1.1) {
-          this.coach('Big belly of line on the water — mend it upstream with a flick, or keep more of it off the surface.');
-        } else if (Math.abs(indDrag) > 0.25) {
-          this.coach('The line is towing the indicator. Mend so it drifts at the speed of the bubbles beside it.');
+          this.coach('Big belly of line on the water — mend it straighter, or keep more of it off the surface.');
         } else if (Math.abs(p.vx) < 0.05 && above < 0.05) {
           this.coach('Hung on the bottom. Shallower under the indicator, or a lighter bug.');
         }
@@ -752,7 +765,10 @@
       lane: this.lane, laneName: lane.name, laneZ: lane.z,
       depth: p.y < 0 ? above : null,
       totalDepth: river.depth(p.x),
-      drag: p.y < 0 ? p.vx - u : 0,
+      // Under an indicator the drag that matters to you is the indicator's own,
+      // relative to the water it sits in; the nymph's is what matters to the fish.
+      drag: this.rig.indicator ? (this.rig.indicatorNode().y < 0.04 ? this.rig.indicatorNode().vx - river.surfaceSpeed(this.rig.indicatorNode().x) : 0)
+                               : (p.y < 0 ? p.vx - u : 0),
       contact: this.rig.contact,
       slack: this.rig.slack,
       style: this.rig.indicator ? 'indicator' : 'euro',

@@ -879,11 +879,14 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
    * sits and how much deeper the bed is there. z is metres across (negative
    * is away from the near bank), depth is added to the beat's bed profile.
    */
+  // flow is how fast each lane runs relative to the beat's mean: slow inside
+  // water at your feet, a quicker seam, the fast tongue, and slacker water
+  // beyond it. Line lying across lanes of different speed is what bellies.
   var LANES = [
-    { key: 'near',   name: 'Near lane',   z:  0.0, depth:  0.00, blurb: 'The soft water at your feet. Easy to reach, easy to line.' },
-    { key: 'seam',   name: 'The seam',    z: -0.6, depth: -0.14, blurb: 'Where the quick water meets the slow — fish sit on this edge.' },
-    { key: 'middle', name: 'Mid-river',   z: -1.2, depth: -0.30, blurb: 'The main current tongue. Deepest, fastest, needs the most weight.' },
-    { key: 'far',    name: 'Far lane',    z: -1.8, depth: -0.12, blurb: 'A long reach. The rod barely gets there, so the leader angles across.' }
+    { key: 'near',   name: 'Near lane',   z:  0.0, depth:  0.00, flow: 1.00, blurb: 'The soft water at your feet. Easy to reach, easy to line.' },
+    { key: 'seam',   name: 'The seam',    z: -0.6, depth: -0.14, flow: 1.22, blurb: 'Where the quick water meets the slow — fish sit on this edge.' },
+    { key: 'middle', name: 'Mid-river',   z: -1.2, depth: -0.30, flow: 1.40, blurb: 'The main current tongue. Deepest, fastest, needs the most weight.' },
+    { key: 'far',    name: 'Far lane',    z: -1.8, depth: -0.12, flow: 0.82, blurb: 'Slower water beyond the tongue. Everything between you and it runs faster than it does.' }
   ];
 
   var WORLD = {
@@ -1055,24 +1058,38 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     this.time = 0;
     this.lane = 0;
     this.lanes = LANES;
+    // Indicator fishing throws the lanes wider, since a fly line reaches
+    // across water a rod tip never could; and the rod tip then stays at the
+    // angler's side of the river rather than in the lane.
+    this.laneSpread = 1;
+    this.tipZ = 0.02;
   }
 
-  River.prototype.laneZ = function () { return LANES[this.lane].z; };
+  River.prototype.laneZ = function (i) {
+    return LANES[i === undefined ? this.lane : i].z * this.laneSpread;
+  };
 
-  /** Extra bed depth for a position across the river, interpolated between lanes. */
-  River.prototype.laneDepthAt = function (z) {
-    if (z >= LANES[0].z) return LANES[0].depth;
+  /** Interpolate a lane property across the river at a position z. */
+  River.prototype._laneLerp = function (z, key) {
+    z /= this.laneSpread;
+    if (z >= LANES[0].z) return LANES[0][key];
     var last = LANES[LANES.length - 1];
-    if (z <= last.z) return last.depth;
+    if (z <= last.z) return last[key];
     for (var i = 1; i < LANES.length; i++) {
       if (z >= LANES[i].z) {
         var a = LANES[i - 1], b = LANES[i];
         var t = (z - a.z) / (b.z - a.z);
-        return a.depth + (b.depth - a.depth) * (t * t * (3 - 2 * t));
+        return a[key] + (b[key] - a[key]) * (t * t * (3 - 2 * t));
       }
     }
-    return last.depth;
+    return last[key];
   };
+
+  /** Extra bed depth for a position across the river, interpolated between lanes. */
+  River.prototype.laneDepthAt = function (z) { return this._laneLerp(z, 'depth'); };
+
+  /** How fast the water runs at a position across the river, relative to the beat. */
+  River.prototype.flowFactorAt = function (z) { return this._laneLerp(z, 'flow'); };
 
   River.prototype.setPreset = function (key) {
     this.preset = PRESETS[key] || PRESETS.riffle;
@@ -1106,7 +1123,12 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   River.prototype.surfaceSpeed = function (x) {
     var p = this.preset;
     var h = Math.max(0.12, this.depth(x));
-    return p.flow * this.flowScale * Math.pow(p.refDepth / h, 0.45);
+    return p.flow * this.flowScale * LANES[this.lane].flow * Math.pow(p.refDepth / h, 0.45);
+  };
+
+  /** Surface speed at a point across the river, for line lying over other lanes. */
+  River.prototype.surfaceSpeedAt = function (x, z) {
+    return this.surfaceSpeed(x) / LANES[this.lane].flow * this.flowFactorAt(z);
   };
 
   /**
@@ -1214,6 +1236,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     this.section = opts.section;
     this.pinned = !!opts.pinned;
     this.floats = !!opts.floats;      // rides the surface rather than sinking
+    this.zf = opts.zf === undefined ? 1 : opts.zf; // 0 at the rod tip's side, 1 in the lane
     this.draft = opts.draft || 0;     // how deep it sits when floating, metres
     this.floatK = opts.floatK || 0;   // stiffness of the return to the waterline
   }
@@ -1304,7 +1327,10 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
         pinned: i === 0,
         floats: !isPoint && opts.floats,
         draft: opts.draft,
-        floatK: opts.floatK
+        floatK: opts.floatK,
+        // Under an indicator the line runs across the river from the tip to
+        // the lane; the rope's own maths stays in the lane's plane.
+        zf: indicator ? Math.min(1, i / Math.max(1, indIndex)) : 1
       }));
     }
 
@@ -1345,6 +1371,12 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   };
 
   Rig.prototype.point = function () { return this.nodes[this.pointIndex]; };
+
+  /** Where a node sits across the river, between the rod tip and the lane. */
+  Rig.prototype.nodeZ = function (i, river) {
+    if (!this.indicator) return river.laneZ();
+    return river.tipZ + (river.laneZ() - river.tipZ) * this.nodes[i].zf;
+  };
   Rig.prototype.indicatorNode = function () {
     return this.indicatorIndex >= 0 ? this.nodes[this.indicatorIndex] : null;
   };
@@ -1400,7 +1432,9 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       if (nd.floats && nd.y < 0.04) {
         // On the surface: carried by the surface current, held at its
         // waterline by buoyancy, and pushed back up if something pulls it under.
-        var us = river.surfaceSpeed(nd.x);
+        // Line lying over other lanes is pushed at their speed, not the lane's:
+        // that difference is the belly, and the belly is the drag.
+        var us = river.surfaceSpeedAt(nd.x, this.nodeZ(i, river));
         var st = river.turbulenceAt(nd.x, -0.01, river.time);
         var kf = 1 - Math.exp(-nd.waterRate * dt);
         nd.vx += ((us + st.x * 0.6) - nd.vx) * kf;
@@ -2026,7 +2060,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   function School(river, lane) {
     this.river = river;
     this.lane = lane || 0;
-    this.z = EN.LANES ? EN.LANES[this.lane].z : 0;
+    this.z = river.laneZ ? river.laneZ(this.lane) : 0;
     this.reset();
   }
 
@@ -2173,7 +2207,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     return out;
   };
 
-  Game.prototype.laneZ = function () { return EN.LANES[this.lane].z; };
+  Game.prototype.laneZ = function () { return this.river.laneZ(); };
 
   /**
    * Under an indicator the free hand works the line: as the drift comes back
@@ -2200,6 +2234,9 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
    * length less what it spends reaching across.
    */
   Game.prototype.reach = function () {
+    // With a fly line the rod stays at your side and the line does the
+    // reaching, so the tip keeps its full sweep whatever the lane.
+    if (this.rig.indicator) return this.rodLength;
     var dz = EN.LANES[this.lane].z - 0.28;
     return Math.sqrt(Math.max(1.6, this.rodLength * this.rodLength - dz * dz));
   };
@@ -2262,7 +2299,15 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
   Game.prototype.setRig = function (patch) {
     this.rig.configure(patch);
-    this.river.dragTolerance = this.rig.indicator ? 1.7 : 1;
+    var ind = this.rig.indicator;
+    this.river.dragTolerance = ind ? 1.7 : 1;
+    this.river.laneSpread = ind ? 2.0 : 1;
+    // The lanes moved: put every school back on its own lane.
+    for (var s = 0; s < this.schools.length; s++) {
+      var school = this.schools[s];
+      school.z = this.river.laneZ(school.lane);
+      for (var f = 0; f < school.fish.length; f++) school.fish[f].z = school.z;
+    }
     this.resetDrift();
   };
 
@@ -2766,10 +2811,12 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
         var indDrag = ind.vx - river.surfaceSpeed(ind.x);
         if (above > 0.55) {
           this.coach('The nymph is riding high. Set the indicator deeper, or go heavier so it gets down under it.');
+        } else if (indDrag > 0.2) {
+          this.coach('Faster water between you and the indicator is bellying the line downstream and towing it. Flick the line back upstream — an upstream mend.');
+        } else if (indDrag < -0.2) {
+          this.coach('The slow water you are standing in is holding the line back and the indicator with it. Throw the line downstream of it — a downstream mend — or feed line.');
         } else if (this.rig.slack > 1.1) {
-          this.coach('Big belly of line on the water — mend it upstream with a flick, or keep more of it off the surface.');
-        } else if (Math.abs(indDrag) > 0.25) {
-          this.coach('The line is towing the indicator. Mend so it drifts at the speed of the bubbles beside it.');
+          this.coach('Big belly of line on the water — mend it straighter, or keep more of it off the surface.');
         } else if (Math.abs(p.vx) < 0.05 && above < 0.05) {
           this.coach('Hung on the bottom. Shallower under the indicator, or a lighter bug.');
         }
@@ -2820,7 +2867,10 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       lane: this.lane, laneName: lane.name, laneZ: lane.z,
       depth: p.y < 0 ? above : null,
       totalDepth: river.depth(p.x),
-      drag: p.y < 0 ? p.vx - u : 0,
+      // Under an indicator the drag that matters to you is the indicator's own,
+      // relative to the water it sits in; the nymph's is what matters to the fish.
+      drag: this.rig.indicator ? (this.rig.indicatorNode().y < 0.04 ? this.rig.indicatorNode().vx - river.surfaceSpeed(this.rig.indicatorNode().x) : 0)
+                               : (p.y < 0 ? p.vx - u : 0),
       contact: this.rig.contact,
       slack: this.rig.slack,
       style: this.rig.indicator ? 'indicator' : 'euro',
@@ -4020,11 +4070,11 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     if (rig.indicator) {
       // Floating fly line, greased butt, a bobber, then a whisper of tippet.
       var lineEnd = Math.floor(rig.indicatorIndex * 0.72);
-      this._strokeRange(nodes, 0, lineEnd, 'rgba(178,190,96,0.95)', 2.6);
+      this._strokeRange(nodes, 0, lineEnd, 'rgba(226,255,74,0.95)', 3.6);
       this._strokeRange(nodes, lineEnd, rig.indicatorIndex, 'rgba(214,206,178,0.75)', 1.4);
       this._strokeRange(nodes, rig.indicatorIndex, n - 1, 'rgba(200,225,232,0.42)', 1.1);
       var ind = rig.indicatorNode();
-      var ir = Math.max(3, rig.indicatorSpec.r * this.scale);
+      var ir = Math.max(4, rig.indicatorSpec.r * this.scale * 1.6);
       var ix = this.sx(ind.x), iy = this.sy(ind.y);
       ctx.save();
       ctx.shadowColor = '#ff8a2a'; ctx.shadowBlur = 10;
@@ -4462,7 +4512,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   var PHASE_TEXT = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>sweep the rod up</strong> to set',
-    driftingInd: 'Drifting — watch the indicator, <strong>sweep the rod up</strong> at any stall or dip',
+    driftingInd: 'Drifting — <strong>mend</strong> when the line tows the indicator, <strong>sweep up</strong> at a stall or dip',
     fighting: 'Fish on — <strong>hold</strong> to gather line, release to give it',
     netting: 'Netting it…'
   };
@@ -4470,7 +4520,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   var PHASE_TEXT_TOUCH = {
     idle: 'Sweep the rod upstream to flick the flies out',
     drifting: 'Drifting — lead the sighter, <strong>flick up</strong> to set',
-    driftingInd: 'Drifting — watch the indicator, <strong>flick up</strong> at any stall or dip',
+    driftingInd: 'Drifting — <strong>flick</strong> to mend when the line tows the indicator, <strong>flick up</strong> at a stall or dip',
     fighting: 'Fish on — <strong>press and hold</strong> to gather line, let go to give it',
     netting: 'Netting it…'
   };

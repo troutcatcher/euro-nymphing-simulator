@@ -404,7 +404,7 @@
   function School(river, lane) {
     this.river = river;
     this.lane = lane || 0;
-    this.z = EN.LANES ? EN.LANES[this.lane].z : 0;
+    this.z = river.laneZ ? river.laneZ(this.lane) : 0;
     this.reset();
   }
 

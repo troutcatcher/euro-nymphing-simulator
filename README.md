@@ -159,11 +159,19 @@ The Method section switches the same river, fish and rod to a floating line, a
 strike indicator and a sunk nymph. Nothing about the trout changes; what changes
 is what you can see and what stands between you and the fish.
 
-- **The fly line floats** and the surface takes hold of it. A belly of line on
-  the water tows the indicator faster than the current beside it, and the nymph
-  under it skates. Mend with a flick of the rod tip to lay the line back
-  upstream, or hold more of it off the water. The free hand strips line in on its
-  own as the drift comes back to you, and the next cast shoots it out again.
+- **The fly line floats** and the surface takes hold of it — and the river does
+  not run at one speed. Each lane across it has its own pace: soft water at your
+  feet, a quicker seam, the fast tongue mid-river, slacker water beyond. Line
+  lying across a faster lane than the one your indicator is in bellies downstream
+  and tows the indicator; the drag meter reads that tow. A mend — a sharp flick of
+  the rod tip up and upstream that lifts the near line and lays it back up — buys
+  a couple of seconds of clean drift before the belly forms again, so you mend and
+  mend again. The free hand strips line in on its own as the drift comes back to
+  you, and the next cast shoots it out again.
+- **The view moves** with the method: over your downstream shoulder, high, looking
+  up and across the lanes, with the indicator coming back down towards you. Casts
+  carry twice as far across as the tight-line lanes, since the fly line does the
+  reaching and the rod tip stays at your side.
 - **The indicator is the sighter now.** Size it to the rig: a small one shows a
   soft take and a small fish can sink it; a large one floats a heavy bug and
   drags more. Set the drop so the nymph hangs where the fish are — the depth

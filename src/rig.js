@@ -57,6 +57,7 @@
     this.section = opts.section;
     this.pinned = !!opts.pinned;
     this.floats = !!opts.floats;      // rides the surface rather than sinking
+    this.zf = opts.zf === undefined ? 1 : opts.zf; // 0 at the rod tip's side, 1 in the lane
     this.draft = opts.draft || 0;     // how deep it sits when floating, metres
     this.floatK = opts.floatK || 0;   // stiffness of the return to the waterline
   }
@@ -147,7 +148,10 @@
         pinned: i === 0,
         floats: !isPoint && opts.floats,
         draft: opts.draft,
-        floatK: opts.floatK
+        floatK: opts.floatK,
+        // Under an indicator the line runs across the river from the tip to
+        // the lane; the rope's own maths stays in the lane's plane.
+        zf: indicator ? Math.min(1, i / Math.max(1, indIndex)) : 1
       }));
     }
 
@@ -188,6 +192,12 @@
   };
 
   Rig.prototype.point = function () { return this.nodes[this.pointIndex]; };
+
+  /** Where a node sits across the river, between the rod tip and the lane. */
+  Rig.prototype.nodeZ = function (i, river) {
+    if (!this.indicator) return river.laneZ();
+    return river.tipZ + (river.laneZ() - river.tipZ) * this.nodes[i].zf;
+  };
   Rig.prototype.indicatorNode = function () {
     return this.indicatorIndex >= 0 ? this.nodes[this.indicatorIndex] : null;
   };
@@ -243,7 +253,9 @@
       if (nd.floats && nd.y < 0.04) {
         // On the surface: carried by the surface current, held at its
         // waterline by buoyancy, and pushed back up if something pulls it under.
-        var us = river.surfaceSpeed(nd.x);
+        // Line lying over other lanes is pushed at their speed, not the lane's:
+        // that difference is the belly, and the belly is the drag.
+        var us = river.surfaceSpeedAt(nd.x, this.nodeZ(i, river));
         var st = river.turbulenceAt(nd.x, -0.01, river.time);
         var kf = 1 - Math.exp(-nd.waterRate * dt);
         nd.vx += ((us + st.x * 0.6) - nd.vx) * kf;

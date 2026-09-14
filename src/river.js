@@ -13,11 +13,14 @@
    * sits and how much deeper the bed is there. z is metres across (negative
    * is away from the near bank), depth is added to the beat's bed profile.
    */
+  // flow is how fast each lane runs relative to the beat's mean: slow inside
+  // water at your feet, a quicker seam, the fast tongue, and slacker water
+  // beyond it. Line lying across lanes of different speed is what bellies.
   var LANES = [
-    { key: 'near',   name: 'Near lane',   z:  0.0, depth:  0.00, blurb: 'The soft water at your feet. Easy to reach, easy to line.' },
-    { key: 'seam',   name: 'The seam',    z: -0.6, depth: -0.14, blurb: 'Where the quick water meets the slow — fish sit on this edge.' },
-    { key: 'middle', name: 'Mid-river',   z: -1.2, depth: -0.30, blurb: 'The main current tongue. Deepest, fastest, needs the most weight.' },
-    { key: 'far',    name: 'Far lane',    z: -1.8, depth: -0.12, blurb: 'A long reach. The rod barely gets there, so the leader angles across.' }
+    { key: 'near',   name: 'Near lane',   z:  0.0, depth:  0.00, flow: 1.00, blurb: 'The soft water at your feet. Easy to reach, easy to line.' },
+    { key: 'seam',   name: 'The seam',    z: -0.6, depth: -0.14, flow: 1.22, blurb: 'Where the quick water meets the slow — fish sit on this edge.' },
+    { key: 'middle', name: 'Mid-river',   z: -1.2, depth: -0.30, flow: 1.40, blurb: 'The main current tongue. Deepest, fastest, needs the most weight.' },
+    { key: 'far',    name: 'Far lane',    z: -1.8, depth: -0.12, flow: 0.82, blurb: 'Slower water beyond the tongue. Everything between you and it runs faster than it does.' }
   ];
 
   var WORLD = {
@@ -189,24 +192,38 @@
     this.time = 0;
     this.lane = 0;
     this.lanes = LANES;
+    // Indicator fishing throws the lanes wider, since a fly line reaches
+    // across water a rod tip never could; and the rod tip then stays at the
+    // angler's side of the river rather than in the lane.
+    this.laneSpread = 1;
+    this.tipZ = 0.02;
   }
 
-  River.prototype.laneZ = function () { return LANES[this.lane].z; };
+  River.prototype.laneZ = function (i) {
+    return LANES[i === undefined ? this.lane : i].z * this.laneSpread;
+  };
 
-  /** Extra bed depth for a position across the river, interpolated between lanes. */
-  River.prototype.laneDepthAt = function (z) {
-    if (z >= LANES[0].z) return LANES[0].depth;
+  /** Interpolate a lane property across the river at a position z. */
+  River.prototype._laneLerp = function (z, key) {
+    z /= this.laneSpread;
+    if (z >= LANES[0].z) return LANES[0][key];
     var last = LANES[LANES.length - 1];
-    if (z <= last.z) return last.depth;
+    if (z <= last.z) return last[key];
     for (var i = 1; i < LANES.length; i++) {
       if (z >= LANES[i].z) {
         var a = LANES[i - 1], b = LANES[i];
         var t = (z - a.z) / (b.z - a.z);
-        return a.depth + (b.depth - a.depth) * (t * t * (3 - 2 * t));
+        return a[key] + (b[key] - a[key]) * (t * t * (3 - 2 * t));
       }
     }
-    return last.depth;
+    return last[key];
   };
+
+  /** Extra bed depth for a position across the river, interpolated between lanes. */
+  River.prototype.laneDepthAt = function (z) { return this._laneLerp(z, 'depth'); };
+
+  /** How fast the water runs at a position across the river, relative to the beat. */
+  River.prototype.flowFactorAt = function (z) { return this._laneLerp(z, 'flow'); };
 
   River.prototype.setPreset = function (key) {
     this.preset = PRESETS[key] || PRESETS.riffle;
@@ -240,7 +257,12 @@
   River.prototype.surfaceSpeed = function (x) {
     var p = this.preset;
     var h = Math.max(0.12, this.depth(x));
-    return p.flow * this.flowScale * Math.pow(p.refDepth / h, 0.45);
+    return p.flow * this.flowScale * LANES[this.lane].flow * Math.pow(p.refDepth / h, 0.45);
+  };
+
+  /** Surface speed at a point across the river, for line lying over other lanes. */
+  River.prototype.surfaceSpeedAt = function (x, z) {
+    return this.surfaceSpeed(x) / LANES[this.lane].flow * this.flowFactorAt(z);
   };
 
   /**
