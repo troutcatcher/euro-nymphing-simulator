@@ -38,8 +38,20 @@
     return renderer.toWorld(ev.clientX - rect.left, ev.clientY - rect.top);
   }
 
+  // A finger steers the rod by how it moves, not where it lands: touching
+  // down never jumps the tip, so a cast can be several swipes from anywhere
+  // on the screen. A mouse still points at the tip directly.
+  var drag = null;
+
   canvas.addEventListener('pointermove', function (ev) {
     if (ev.pointerType === 'touch' && ev.buttons === 0) return;
+    if (drag) {
+      var rect = canvas.getBoundingClientRect();
+      var a = renderer.toWorld(drag.x - rect.left, drag.y - rect.top);
+      var b = renderer.toWorld(ev.clientX - rect.left, ev.clientY - rect.top);
+      game.setTipTarget(drag.wx + (b.x - a.x), drag.wy + (b.y - a.y));
+      return;
+    }
     var w = pointerToWorld(ev);
     game.setTipTarget(w.x, w.y);
   });
@@ -48,13 +60,17 @@
     ev.preventDefault();
     if (ev.pointerType === 'touch' || ev.pointerType === 'pen') touchMode = true;
     try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* not fatal */ }
-    var w = pointerToWorld(ev);
-    game.setTipTarget(w.x, w.y);
+    if (ev.pointerType === 'touch' || ev.pointerType === 'pen') {
+      drag = { x: ev.clientX, y: ev.clientY, wx: game.tipTarget.x, wy: game.tipTarget.y };
+    } else {
+      var w = pointerToWorld(ev);
+      game.setTipTarget(w.x, w.y);
+    }
     // Only means anything with a fish on, so it costs nothing the rest of the time.
     game.gathering = true;
   });
 
-  function releasePointer() { game.gathering = false; }
+  function releasePointer() { game.gathering = false; drag = null; }
   canvas.addEventListener('pointerup', releasePointer);
   canvas.addEventListener('pointercancel', releasePointer);
   window.addEventListener('blur', releasePointer);

@@ -1452,11 +1452,26 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
         nd.vx += ((u + turb.x) - nd.vx) * k;
         nd.vy += (turb.y - nd.vy) * k;
         nd.vy -= G * nd.buoy * dt;
-      } else {
+      } else if (nd.airQuad > 0) {
+        // A line in the air: little drag along its own length, a great deal
+        // across it. That is what lets a loop carry while a straightened line
+        // hangs in the air instead of dropping like a stone.
+        var pa = nodes[Math.max(0, i - 1)], pb = nodes[Math.min(nodes.length - 1, i + 1)];
+        var tx = pb.x - pa.x, ty = pb.y - pa.y, tl = Math.hypot(tx, ty) || 1;
+        tx /= tl; ty /= tl;
         var spd = Math.hypot(nd.vx, nd.vy);
-        var ka = 1 - Math.exp(-(nd.airRate + nd.airQuad * spd) * dt);
-        nd.vx += (0 - nd.vx) * ka;
-        nd.vy += (0 - nd.vy) * ka;
+        var along = nd.vx * tx + nd.vy * ty;
+        var perpX = nd.vx - along * tx, perpY = nd.vy - along * ty;
+        var kAlong = 1 - Math.exp(-(nd.airRate + nd.airQuad * spd) * dt);
+        var kPerp = 1 - Math.exp(-(nd.airRate * 4 + nd.airQuad * 2.5 * spd) * dt);
+        along *= (1 - kAlong);
+        perpX *= (1 - kPerp); perpY *= (1 - kPerp);
+        nd.vx = along * tx + perpX;
+        nd.vy = along * ty + perpY - G * dt;
+      } else {
+        var kair = 1 - Math.exp(-nd.airRate * dt);
+        nd.vx += (0 - nd.vx) * kair;
+        nd.vy += (0 - nd.vy) * kair;
         nd.vy -= G * dt;
       }
 
@@ -2474,8 +2489,15 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       // snaps past it when the hand stops. That stop is what throws the loop.
       if (!this.tipVel) this.tipVel = { x: 0, y: 0 };
       var w = 2 * Math.PI * 2.2, zeta = 0.65;
+      // A fast stroke rides high of its own accord — the casting arc — so a
+      // flat flick of the thumb still throws the line over the top.
+      // A fast stroke rides a little high of its own accord — the casting
+      // arc — so a flat flick of the thumb still throws the line over the top.
+      var spd = Math.abs(this.tipVel.x);
+      var arc = clamp((spd - 2.2) / 3.5, 0, 1) * 0.35;
+      var ty = Math.min(EN.WORLD.yTop - 0.1, this.tipTarget.y + arc);
       this.tipVel.x += (w * w * (this.tipTarget.x - this.tip.x) - 2 * zeta * w * this.tipVel.x) * dt;
-      this.tipVel.y += (w * w * (this.tipTarget.y - this.tip.y) - 2 * zeta * w * this.tipVel.y) * dt;
+      this.tipVel.y += (w * w * (ty - this.tip.y) - 2 * zeta * w * this.tipVel.y) * dt;
       this.tip.x += this.tipVel.x * dt;
       this.tip.y += this.tipVel.y * dt;
     } else {
@@ -4252,8 +4274,20 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     return renderer.toWorld(ev.clientX - rect.left, ev.clientY - rect.top);
   }
 
+  // A finger steers the rod by how it moves, not where it lands: touching
+  // down never jumps the tip, so a cast can be several swipes from anywhere
+  // on the screen. A mouse still points at the tip directly.
+  var drag = null;
+
   canvas.addEventListener('pointermove', function (ev) {
     if (ev.pointerType === 'touch' && ev.buttons === 0) return;
+    if (drag) {
+      var rect = canvas.getBoundingClientRect();
+      var a = renderer.toWorld(drag.x - rect.left, drag.y - rect.top);
+      var b = renderer.toWorld(ev.clientX - rect.left, ev.clientY - rect.top);
+      game.setTipTarget(drag.wx + (b.x - a.x), drag.wy + (b.y - a.y));
+      return;
+    }
     var w = pointerToWorld(ev);
     game.setTipTarget(w.x, w.y);
   });
@@ -4262,13 +4296,17 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     ev.preventDefault();
     if (ev.pointerType === 'touch' || ev.pointerType === 'pen') touchMode = true;
     try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* not fatal */ }
-    var w = pointerToWorld(ev);
-    game.setTipTarget(w.x, w.y);
+    if (ev.pointerType === 'touch' || ev.pointerType === 'pen') {
+      drag = { x: ev.clientX, y: ev.clientY, wx: game.tipTarget.x, wy: game.tipTarget.y };
+    } else {
+      var w = pointerToWorld(ev);
+      game.setTipTarget(w.x, w.y);
+    }
     // Only means anything with a fish on, so it costs nothing the rest of the time.
     game.gathering = true;
   });
 
-  function releasePointer() { game.gathering = false; }
+  function releasePointer() { game.gathering = false; drag = null; }
   canvas.addEventListener('pointerup', releasePointer);
   canvas.addEventListener('pointercancel', releasePointer);
   window.addEventListener('blur', releasePointer);

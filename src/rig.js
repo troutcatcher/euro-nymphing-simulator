@@ -273,11 +273,26 @@
         nd.vx += ((u + turb.x) - nd.vx) * k;
         nd.vy += (turb.y - nd.vy) * k;
         nd.vy -= G * nd.buoy * dt;
-      } else {
+      } else if (nd.airQuad > 0) {
+        // A line in the air: little drag along its own length, a great deal
+        // across it. That is what lets a loop carry while a straightened line
+        // hangs in the air instead of dropping like a stone.
+        var pa = nodes[Math.max(0, i - 1)], pb = nodes[Math.min(nodes.length - 1, i + 1)];
+        var tx = pb.x - pa.x, ty = pb.y - pa.y, tl = Math.hypot(tx, ty) || 1;
+        tx /= tl; ty /= tl;
         var spd = Math.hypot(nd.vx, nd.vy);
-        var ka = 1 - Math.exp(-(nd.airRate + nd.airQuad * spd) * dt);
-        nd.vx += (0 - nd.vx) * ka;
-        nd.vy += (0 - nd.vy) * ka;
+        var along = nd.vx * tx + nd.vy * ty;
+        var perpX = nd.vx - along * tx, perpY = nd.vy - along * ty;
+        var kAlong = 1 - Math.exp(-(nd.airRate + nd.airQuad * spd) * dt);
+        var kPerp = 1 - Math.exp(-(nd.airRate * 4 + nd.airQuad * 2.5 * spd) * dt);
+        along *= (1 - kAlong);
+        perpX *= (1 - kPerp); perpY *= (1 - kPerp);
+        nd.vx = along * tx + perpX;
+        nd.vy = along * ty + perpY - G * dt;
+      } else {
+        var kair = 1 - Math.exp(-nd.airRate * dt);
+        nd.vx += (0 - nd.vx) * kair;
+        nd.vy += (0 - nd.vy) * kair;
         nd.vy -= G * dt;
       }
 

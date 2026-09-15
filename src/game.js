@@ -368,8 +368,15 @@
       // snaps past it when the hand stops. That stop is what throws the loop.
       if (!this.tipVel) this.tipVel = { x: 0, y: 0 };
       var w = 2 * Math.PI * 2.2, zeta = 0.65;
+      // A fast stroke rides high of its own accord — the casting arc — so a
+      // flat flick of the thumb still throws the line over the top.
+      // A fast stroke rides a little high of its own accord — the casting
+      // arc — so a flat flick of the thumb still throws the line over the top.
+      var spd = Math.abs(this.tipVel.x);
+      var arc = clamp((spd - 2.2) / 3.5, 0, 1) * 0.35;
+      var ty = Math.min(EN.WORLD.yTop - 0.1, this.tipTarget.y + arc);
       this.tipVel.x += (w * w * (this.tipTarget.x - this.tip.x) - 2 * zeta * w * this.tipVel.x) * dt;
-      this.tipVel.y += (w * w * (this.tipTarget.y - this.tip.y) - 2 * zeta * w * this.tipVel.y) * dt;
+      this.tipVel.y += (w * w * (ty - this.tip.y) - 2 * zeta * w * this.tipVel.y) * dt;
       this.tip.x += this.tipVel.x * dt;
       this.tip.y += this.tipVel.y * dt;
     } else {
