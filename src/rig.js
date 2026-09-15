@@ -118,7 +118,7 @@
       if (indicator) {
         if (i < indIndex * 0.72) {
           // Floating fly line: fat, and the surface takes hold of it hard.
-          section = 'line'; waterRate = 70; airRate = 0.7;
+          section = 'line'; waterRate = 70; airRate = 0.5;
           opts = { buoy: 0, mass: lineMass, floats: true, draft: 0.0015, floatK: 90 };
         } else if (i < indIndex) {
           // Greased leader butt, floating but lighter on the water.
@@ -146,7 +146,7 @@
         buoy: isPoint ? BUOY.fly : opts.buoy,
         waterRate: isPoint ? G * BUOY.fly / beadSinkRate(c.pointBead) : waterRate,
         airRate: isPoint ? (indicator ? 0.9 : 0.45) : airRate,
-        airQuad: indicator ? (isPoint ? 0.05 : (section === 'line' ? 0.04 : 0.14)) : 0,
+        airQuad: indicator ? (isPoint ? 0.05 : (section === 'line' ? 0.03 : 0.12)) : 0,
         section: isPoint ? 'point' : section,
         pinned: i === 0,
         floats: !isPoint && opts.floats,
@@ -284,7 +284,7 @@
         var along = nd.vx * tx + nd.vy * ty;
         var perpX = nd.vx - along * tx, perpY = nd.vy - along * ty;
         var kAlong = 1 - Math.exp(-(nd.airRate + nd.airQuad * spd) * dt);
-        var kPerp = 1 - Math.exp(-(nd.airRate * 4 + nd.airQuad * 2.5 * spd) * dt);
+        var kPerp = 1 - Math.exp(-(nd.airRate * 3.2 + nd.airQuad * 2.2 * spd) * dt);
         along *= (1 - kAlong);
         perpX *= (1 - kPerp); perpY *= (1 - kPerp);
         nd.vx = along * tx + perpX;

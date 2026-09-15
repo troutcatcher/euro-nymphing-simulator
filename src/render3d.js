@@ -505,8 +505,10 @@
       // Over the downstream shoulder, high, looking up and across: the line
       // lies across the lanes in front of you and the indicator comes back
       // down towards you, which is where you watch it drag.
-      this.camera.position.set(this.game.grip.x + 0.9, 2.9, 4.0);
-      focus.set(this.game.grip.x - 2.8, -0.25, -2.4);
+      // Straight across the river from behind the angler's upstream shoulder:
+      // the drift comes in from the left and passes in front.
+      this.camera.position.set(this.game.grip.x - 0.6, 3.0, 4.3);
+      focus.set(this.game.grip.x - 0.6, -0.35, -2.6);
     } else if (this._view === 'side') {
       this.camera.position.set(5.0, 2.25, 7.6);
       focus.set(4.8, 0.05, 0);

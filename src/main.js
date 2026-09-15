@@ -49,7 +49,9 @@
       var rect = canvas.getBoundingClientRect();
       var a = renderer.toWorld(drag.x - rect.left, drag.y - rect.top);
       var b = renderer.toWorld(ev.clientX - rect.left, ev.clientY - rect.top);
-      game.setTipTarget(drag.wx + (b.x - a.x), drag.wy + (b.y - a.y));
+      // A thumb flick is short; with a fly line it stands for a full stroke.
+      var gain = game.rig.indicator ? 1.6 : 1.0;
+      game.setTipTarget(drag.wx + (b.x - a.x) * gain, drag.wy + (b.y - a.y) * gain);
       return;
     }
     var w = pointerToWorld(ev);

@@ -167,7 +167,7 @@
   var CAST_LANES = [5.0, 7.5, 11.0];
   // With a fly line the indicator's speed in the air carries the cast: these
   // were measured off gentle, medium, brisk and hard overhead strokes.
-  var CAST_LANES_IND = [9.0, 14.0, 20.0];
+  var CAST_LANES_IND = [13.0, 22.0, 31.0];
   Game.prototype.laneForCast = function (speed) {
     var steps = this.rig.indicator ? CAST_LANES_IND : CAST_LANES;
     var lane = 0;
@@ -367,7 +367,7 @@
       // The rod is a spring: the tip lags the hand as the blank loads and
       // snaps past it when the hand stops. That stop is what throws the loop.
       if (!this.tipVel) this.tipVel = { x: 0, y: 0 };
-      var w = 2 * Math.PI * 2.2, zeta = 0.65;
+      var w = 2 * Math.PI * 2.8, zeta = 0.6;
       // A fast stroke rides high of its own accord — the casting arc — so a
       // flat flick of the thumb still throws the line over the top.
       // A fast stroke rides a little high of its own accord — the casting
