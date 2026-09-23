@@ -64,6 +64,21 @@
 
   Renderer.prototype.sx = function (x) { return this.ox + x * this.scale; };
   Renderer.prototype.sy = function (y) { return this.oy + (W.yTop - y) * this.scale; };
+  /**
+   * Screen points (canvas pixels) of the things you are watching: the
+   * indicator or the sighter, the flies, and a hooked fish. The overlay keeps
+   * its hints off them.
+   */
+  Renderer.prototype.watchPoints = function () {
+    var g = this.game, rig = g.rig, out = [], self = this;
+    function add(x, y) { out.push({ x: self.sx(x), y: self.sy(y) }); }
+    if (rig.indicator) { var ind = rig.indicatorNode(); add(ind.x, ind.y); }
+    else for (var i = rig.sighterFrom; i <= rig.sighterTo; i += 2) add(rig.nodes[i].x, rig.nodes[i].y);
+    var p = rig.point(); add(p.x, p.y);
+    var f = g.school.active(); if (f) add(f.x, f.y);
+    return out;
+  };
+
   Renderer.prototype.toWorld = function (px, py) {
     return { x: (px - this.ox) / this.scale, y: W.yTop - (py - this.oy) / this.scale };
   };

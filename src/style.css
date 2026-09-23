@@ -192,6 +192,17 @@ body.immersive #panel { display: none; }
   font-size: 12.5px;
   line-height: 1.3;
 }
+#log, #phase { transition: opacity 160ms ease; }
+#log.clear, #phase.clear { opacity: 0.08; }
+#log .msg:nth-child(n + 3) { display: none; }
+/* Indicator view looks across the river: the far lanes land top left, so
+   the hints go top right, over the far bank behind the angler. */
+body.method-indicator #log { align-self: flex-end; align-items: flex-end; text-align: right; }
+body.method-indicator .msg { border-left: none; border-right: 3px solid var(--muted); }
+body.method-indicator .msg.good { border-color: var(--good); }
+body.method-indicator .msg.bad { border-color: var(--bad); }
+body.method-indicator .msg.alert { border-color: var(--alert); }
+body.method-indicator .msg.coach { border-color: var(--accent); }
 .msg.good { border-color: var(--good); }
 .msg.bad { border-color: var(--bad); }
 .msg.alert { border-color: var(--alert); color: var(--alert); font-weight: 600; }

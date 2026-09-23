@@ -471,6 +471,25 @@
     el['s-dead'].textContent = s.drifts ? Math.round(s.deadPct) + '%' : '—';
     el['s-last'].textContent = game.lastDrift ? game.lastDrift.score + ' / 100' : '—';
 
+    // Hints never sit on what you are watching: anything drawn behind one
+    // fades it almost away until it has passed.
+    var pts = renderer.watchPoints ? renderer.watchPoints() : [];
+    var crect = canvas.getBoundingClientRect();
+    function covers(node) {
+      if (!node || node.hidden || !node.offsetParent) return false;
+      var r = node.getBoundingClientRect(), pad = 16;
+      for (var i = 0; i < pts.length; i++) {
+        var px = crect.left + pts[i].x, py = crect.top + pts[i].y;
+        if (px > r.left - pad && px < r.right + pad && py > r.top - pad && py < r.bottom + pad) return true;
+      }
+      return false;
+    }
+    var logCovers = false;
+    for (var mi = 0; mi < el.log.children.length && !logCovers; mi++) logCovers = covers(el.log.children[mi]);
+    el.log.classList.toggle('clear', logCovers);
+    el.phase.classList.toggle('clear', covers(el.phase));
+    document.body.classList.toggle('method-indicator', hud.style === 'indicator');
+
     var sig = game.messages.map(function (m) { return m.kind + m.text; }).join('|');
     if (sig !== logSig) {
       logSig = sig;

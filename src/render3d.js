@@ -1761,6 +1761,30 @@
   };
 
   /** Pointer → the rig plane (z = 0), so the rod follows the finger. */
+  /**
+   * Screen points (canvas pixels) of the things you are watching, as drawn:
+   * the indicator or the sighter, the point fly, and a hooked fish.
+   */
+  Renderer.prototype.watchPoints = function () {
+    var rect = this.canvas.getBoundingClientRect(), cam = this.camera, out = [];
+    var v = this._wv || (this._wv = new T.Vector3());
+    function add(p) {
+      v.copy(p).project(cam);
+      if (v.z < 1) out.push({ x: (v.x + 1) / 2 * rect.width, y: (1 - v.y) / 2 * rect.height });
+    }
+    if (this.indicator && this.indicator.visible) add(this.indicator.position);
+    else if (this.sighter && this.sighter.mesh.visible) {
+      var rig = this.game.rig, w = this._wv2 || (this._wv2 = new T.Vector3());
+      for (var i = rig.sighterFrom; i <= rig.sighterTo; i += 2) add(w.set(rig.nodes[i].x, rig.nodes[i].y, this.rigZ));
+    }
+    if (this.pointFly) add(this.pointFly.position);
+    var f = this.game.school.active();
+    if (f && this.fishMeshes) for (var k = 0; k < this.fishMeshes.length; k++) {
+      if (this.fishMeshes[k].group.visible && Math.abs(this.fishMeshes[k].group.position.x - f.x) < 0.01) add(this.fishMeshes[k].group.position);
+    }
+    return out;
+  };
+
   Renderer.prototype.toWorld = function (px, py) {
     var rect = this.canvas.getBoundingClientRect();
     var ndc = new T.Vector2((px / rect.width) * 2 - 1, -(py / rect.height) * 2 + 1);

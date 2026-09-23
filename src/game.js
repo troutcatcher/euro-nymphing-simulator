@@ -79,7 +79,7 @@
   };
 
   Game.prototype.say = function (text, kind) {
-    this.messages.unshift({ text: text, kind: kind || 'info', life: 4.5 });
+    this.messages.unshift({ text: text, kind: kind || 'info', life: kind === 'coach' ? 4.0 : 3.2 });
     if (this.messages.length > 3) this.messages.length = 3;
   };
 
@@ -186,7 +186,7 @@
       if (this.castPeak > 0 && this.castLane !== null) {
         var L = EN.LANES[this.lane];
         if (this.castLane !== this.castAnnounced) {
-          this.say('Landed in ' + L.name.toLowerCase() + ' — ' + L.blurb, 'info');
+          this.say(L.name, 'info');
           this.castAnnounced = this.castLane;
         }
       }

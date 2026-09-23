@@ -201,6 +201,17 @@ body.immersive #panel { display: none; }
   font-size: 12.5px;
   line-height: 1.3;
 }
+#log, #phase { transition: opacity 160ms ease; }
+#log.clear, #phase.clear { opacity: 0.08; }
+#log .msg:nth-child(n + 3) { display: none; }
+/* Indicator view looks across the river: the far lanes land top left, so
+   the hints go top right, over the far bank behind the angler. */
+body.method-indicator #log { align-self: flex-end; align-items: flex-end; text-align: right; }
+body.method-indicator .msg { border-left: none; border-right: 3px solid var(--muted); }
+body.method-indicator .msg.good { border-color: var(--good); }
+body.method-indicator .msg.bad { border-color: var(--bad); }
+body.method-indicator .msg.alert { border-color: var(--alert); }
+body.method-indicator .msg.coach { border-color: var(--accent); }
 .msg.good { border-color: var(--good); }
 .msg.bad { border-color: var(--bad); }
 .msg.alert { border-color: var(--alert); color: var(--alert); font-weight: 600; }
@@ -2213,7 +2224,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
   };
 
   Game.prototype.say = function (text, kind) {
-    this.messages.unshift({ text: text, kind: kind || 'info', life: 4.5 });
+    this.messages.unshift({ text: text, kind: kind || 'info', life: kind === 'coach' ? 4.0 : 3.2 });
     if (this.messages.length > 3) this.messages.length = 3;
   };
 
@@ -2320,7 +2331,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       if (this.castPeak > 0 && this.castLane !== null) {
         var L = EN.LANES[this.lane];
         if (this.castLane !== this.castAnnounced) {
-          this.say('Landed in ' + L.name.toLowerCase() + ' — ' + L.blurb, 'info');
+          this.say(L.name, 'info');
           this.castAnnounced = this.castLane;
         }
       }
@@ -3014,6 +3025,21 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
 
   Renderer.prototype.sx = function (x) { return this.ox + x * this.scale; };
   Renderer.prototype.sy = function (y) { return this.oy + (W.yTop - y) * this.scale; };
+  /**
+   * Screen points (canvas pixels) of the things you are watching: the
+   * indicator or the sighter, the flies, and a hooked fish. The overlay keeps
+   * its hints off them.
+   */
+  Renderer.prototype.watchPoints = function () {
+    var g = this.game, rig = g.rig, out = [], self = this;
+    function add(x, y) { out.push({ x: self.sx(x), y: self.sy(y) }); }
+    if (rig.indicator) { var ind = rig.indicatorNode(); add(ind.x, ind.y); }
+    else for (var i = rig.sighterFrom; i <= rig.sighterTo; i += 2) add(rig.nodes[i].x, rig.nodes[i].y);
+    var p = rig.point(); add(p.x, p.y);
+    var f = g.school.active(); if (f) add(f.x, f.y);
+    return out;
+  };
+
   Renderer.prototype.toWorld = function (px, py) {
     return { x: (px - this.ox) / this.scale, y: W.yTop - (py - this.oy) / this.scale };
   };
@@ -4716,6 +4742,25 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     el['s-zone'].textContent = s.drifts ? Math.round(s.zonePct) + '%' : '—';
     el['s-dead'].textContent = s.drifts ? Math.round(s.deadPct) + '%' : '—';
     el['s-last'].textContent = game.lastDrift ? game.lastDrift.score + ' / 100' : '—';
+
+    // Hints never sit on what you are watching: anything drawn behind one
+    // fades it almost away until it has passed.
+    var pts = renderer.watchPoints ? renderer.watchPoints() : [];
+    var crect = canvas.getBoundingClientRect();
+    function covers(node) {
+      if (!node || node.hidden || !node.offsetParent) return false;
+      var r = node.getBoundingClientRect(), pad = 16;
+      for (var i = 0; i < pts.length; i++) {
+        var px = crect.left + pts[i].x, py = crect.top + pts[i].y;
+        if (px > r.left - pad && px < r.right + pad && py > r.top - pad && py < r.bottom + pad) return true;
+      }
+      return false;
+    }
+    var logCovers = false;
+    for (var mi = 0; mi < el.log.children.length && !logCovers; mi++) logCovers = covers(el.log.children[mi]);
+    el.log.classList.toggle('clear', logCovers);
+    el.phase.classList.toggle('clear', covers(el.phase));
+    document.body.classList.toggle('method-indicator', hud.style === 'indicator');
 
     var sig = game.messages.map(function (m) { return m.kind + m.text; }).join('|');
     if (sig !== logSig) {
