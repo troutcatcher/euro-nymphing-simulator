@@ -253,7 +253,9 @@
       if (nd.pinned) continue;
 
       var submerged = nd.y < 0;
-      if (nd.floats && nd.y < 0.04) {
+      // With a fish on, the load lifts the line off the water and drags the
+      // indicator under: nothing floats, the rope comes straight to the fish.
+      if (nd.floats && nd.y < 0.04 && !this.fighting) {
         // On the surface: carried by the surface current, held at its
         // waterline by buoyancy, and pushed back up if something pulls it under.
         // Line lying over other lanes is pushed at their speed, not the lane's:

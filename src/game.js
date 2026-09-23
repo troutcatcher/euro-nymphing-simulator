@@ -389,6 +389,7 @@
     this._updateLift(dt);
 
     this.rig.gathering = this.gathering && this.phase === 'fighting';
+    this.rig.fighting = this.phase === 'fighting' || this.phase === 'netting';
     if (this.phase === 'fighting') {
       var min = this.rig.minLineOut(), max = this.rig.total + 2.2;
       var load = this.hudState().tension;
@@ -528,12 +529,8 @@
         }
         if (f.jumpEvent === 'launch') this.say(fish_jumped(f), 'alert');
         var res = f.updateHooked(dt, this.tip, this.rig, this.tippetStrength(), this.netPoint);
-        if (!res && f.stamina < 0.45) {
-          if ((f.tension || 0) > 0.95) {
-            this.coach('Drop the rod tip and lead it to your feet — you cannot land it with the rod held high.');
-          } else if (Math.hypot(f.x - this.netPoint.x, f.y - this.netPoint.y) > 1.4) {
-            this.coach('It is beaten. Low rod, short line, walk it in to your side.');
-          }
+        if (!res && f.stamina < 0.45 && !f.inNetReach(this.tip, this.netPoint)) {
+          this.coach('It is tiring. Keep the rod up, gather line and draw it in to where the net can reach.');
         }
         if (res) {
           if (res.type === 'landed') this._beginNetting(f);

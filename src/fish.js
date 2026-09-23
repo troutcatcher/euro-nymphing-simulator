@@ -234,6 +234,18 @@
    * Playing the fish. It swims where it wants; the leader is a rope from the
    * rod tip, so line length and rod position decide how much it gets.
    */
+  /**
+   * Within reach of the net: in close along the river, whether that is at
+   * the angler's feet or under a raised rod tip a couple of metres out. The
+   * net has a long handle and an arm behind it.
+   */
+  Fish.prototype.inNetReach = function (tip, net) {
+    if (!net) return false;
+    var nearAngler = Math.abs(this.x - net.x) < 1.7;
+    var underTip = tip && Math.abs(this.x - tip.x) < 0.9;
+    return this.y > -0.9 && (nearAngler || underTip);
+  };
+
   Fish.prototype.updateHooked = function (dt, tip, rig, tippetStrength, net) {
     var river = this.river;
 
@@ -377,10 +389,9 @@
     } else if (this.slackTime > 2.6) {
       this.state = 'lost';
       result = { type: 'pulled' };
-    } else if (this.stamina < 0.35 && net &&
-               Math.hypot(this.x - net.x, this.y - net.y) < 1.00) {
-      // Landed at your feet, not at the rod tip — which is why you have to
-      // drop the rod and lead it in at the end.
+    } else if (this.stamina < 0.35 && net && this.inNetReach(tip, net)) {
+      // Beaten and drawn in within reach of the net. The rod stays up — that
+      // is what keeps the fish's head coming — and the net goes out to it.
       this.state = 'landed';
       result = { type: 'landed' };
     }

@@ -1432,7 +1432,9 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
       if (nd.pinned) continue;
 
       var submerged = nd.y < 0;
-      if (nd.floats && nd.y < 0.04) {
+      // With a fish on, the load lifts the line off the water and drags the
+      // indicator under: nothing floats, the rope comes straight to the fish.
+      if (nd.floats && nd.y < 0.04 && !this.fighting) {
         // On the surface: carried by the surface current, held at its
         // waterline by buoyancy, and pushed back up if something pulls it under.
         // Line lying over other lanes is pushed at their speed, not the lane's:
@@ -1909,6 +1911,18 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
    * Playing the fish. It swims where it wants; the leader is a rope from the
    * rod tip, so line length and rod position decide how much it gets.
    */
+  /**
+   * Within reach of the net: in close along the river, whether that is at
+   * the angler's feet or under a raised rod tip a couple of metres out. The
+   * net has a long handle and an arm behind it.
+   */
+  Fish.prototype.inNetReach = function (tip, net) {
+    if (!net) return false;
+    var nearAngler = Math.abs(this.x - net.x) < 1.7;
+    var underTip = tip && Math.abs(this.x - tip.x) < 0.9;
+    return this.y > -0.9 && (nearAngler || underTip);
+  };
+
   Fish.prototype.updateHooked = function (dt, tip, rig, tippetStrength, net) {
     var river = this.river;
 
@@ -2052,10 +2066,9 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     } else if (this.slackTime > 2.6) {
       this.state = 'lost';
       result = { type: 'pulled' };
-    } else if (this.stamina < 0.35 && net &&
-               Math.hypot(this.x - net.x, this.y - net.y) < 1.00) {
-      // Landed at your feet, not at the rod tip — which is why you have to
-      // drop the rod and lead it in at the end.
+    } else if (this.stamina < 0.35 && net && this.inNetReach(tip, net)) {
+      // Beaten and drawn in within reach of the net. The rod stays up — that
+      // is what keeps the fish's head coming — and the net goes out to it.
       this.state = 'landed';
       result = { type: 'landed' };
     }
@@ -2510,6 +2523,7 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
     this._updateLift(dt);
 
     this.rig.gathering = this.gathering && this.phase === 'fighting';
+    this.rig.fighting = this.phase === 'fighting' || this.phase === 'netting';
     if (this.phase === 'fighting') {
       var min = this.rig.minLineOut(), max = this.rig.total + 2.2;
       var load = this.hudState().tension;
@@ -2649,12 +2663,8 @@ h1 .tag3d { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; vertical-
         }
         if (f.jumpEvent === 'launch') this.say(fish_jumped(f), 'alert');
         var res = f.updateHooked(dt, this.tip, this.rig, this.tippetStrength(), this.netPoint);
-        if (!res && f.stamina < 0.45) {
-          if ((f.tension || 0) > 0.95) {
-            this.coach('Drop the rod tip and lead it to your feet — you cannot land it with the rod held high.');
-          } else if (Math.hypot(f.x - this.netPoint.x, f.y - this.netPoint.y) > 1.4) {
-            this.coach('It is beaten. Low rod, short line, walk it in to your side.');
-          }
+        if (!res && f.stamina < 0.45 && !f.inNetReach(this.tip, this.netPoint)) {
+          this.coach('It is tiring. Keep the rod up, gather line and draw it in to where the net can reach.');
         }
         if (res) {
           if (res.type === 'landed') this._beginNetting(f);

@@ -1530,21 +1530,29 @@
     // Leader and sighter straight off the rig nodes.
     var nodes = rig.nodes, n = this.leaderN;
     var lp = [];
+    // With a fish on the rope runs straight from the rod tip to the fish, so
+    // spread the reach across the river evenly along it; ease into that
+    // rather than jump, so hooking up never snaps the line sideways.
+    var fightT = (g.phase === 'fighting' || g.phase === 'netting') ? 1 : 0;
+    this._fightBlend = (this._fightBlend || 0) + (fightT - (this._fightBlend || 0)) * 0.12;
+    var fb = this._fightBlend;
+    var ap = { x: 0, y: 0, z: 0 };
     for (var k = 0; k < n; k++) {
       var ny = nodes[k].y;
       // Floating line sits a hair under the mean surface; draw it just above
       // the wave crests so the water does not hide it between them.
-      if (nodes[k].floats && ny > -0.06 && ny < 0.04) ny = 0.03;
-      var zf = nodes[k].zf;
-      if (indi && nodes[k].y > 0.05 && nodes[k].section !== 'tippet' && nodes[k].section !== 'point') {
+      if (nodes[k].floats && !rig.fighting && ny > -0.06 && ny < 0.04) ny = 0.03;
+      var zf = nodes[k].zf + (k / (n - 1) - nodes[k].zf) * fb;
+      var wx = nodes[k].x + (1 - zf) * (tip3.x - tx), wz = tip3.z + (rz - tip3.z) * zf;
+      if (indi && nodes[k].section !== 'tippet' && nodes[k].section !== 'point') {
         // Line in the air flies in the stroke plane — up and across, or back
-        // over the shoulder on the back cast.
-        var ap = this._toStroke(nodes[k].x, ny, { x: 0, y: 0, z: 0 });
-        lp.push(ap);
-      } else {
-        // On the water it runs from where the rod is out to the lane.
-        lp.push({ x: nodes[k].x + (1 - zf) * (tip3.x - tx), y: ny, z: tip3.z + (rz - tip3.z) * zf });
+        // over the shoulder on the back cast — and on the water it runs out to
+        // the lane. Blend by height so the two never meet at a fold.
+        this._toStroke(nodes[k].x, ny, ap);
+        var air = smooth(0.02, 0.9, nodes[k].y) * (1 - fb);
+        wx += (ap.x - wx) * air; wz += (ap.z - wz) * air;
       }
+      lp.push({ x: wx, y: ny, z: wz });
     }
     this.leader.set(lp);
     var styleKey = (rig.indicator ? 'i' : 'e') + rig.indicatorIndex;

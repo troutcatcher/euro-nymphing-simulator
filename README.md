@@ -103,7 +103,8 @@ and gathering line. This switches on automatically.
 The loop: sweep the flies upstream, lead the sighter downstream at the speed of
 the water, keep the contact meter in its band, and lift at anything the sighter
 does that the current cannot explain. Then keep a bend in the rod, give line when
-it runs, and drop the rod tip to lead a beaten fish to your feet.
+it runs, and gather it in: once it is beaten and within reach, the net goes out
+to it. Keep the rod up to the end — that is what keeps its head coming.
 
 The river has four drift lanes across it — at your feet, the seam, mid-river and
 a far lane — each with its own depth and its own fish. Where a cast lands is the
@@ -287,8 +288,8 @@ Beating a fish does not end it. The angler unships the net, sinks it in front of
 them, draws the fish over the hoop and lifts — two seconds during which the fish
 follows the mouth of the net along the same path the net is drawn on, so the
 picture and the physics cannot disagree. Hold on through a surge and you pop
-the tippet; let go and line slips under load. A fish is landed at your feet, not
-at the rod tip, which is why you have to drop the rod at the end.
+the tippet; let go and line slips under load. The net reaches a beaten fish in
+close, at your feet or under a raised rod tip, so the rod stays up throughout.
 
 ## Layout
 
